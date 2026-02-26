@@ -47,7 +47,7 @@ services:
     networks:
       - archium-network
     volumes:
-      - ../../error-codes/errors.json:/app/errors.json:ro
+      - ./error-codes/errors.json:/app/errors.json:ro
     
 networks:
   archium-network:
