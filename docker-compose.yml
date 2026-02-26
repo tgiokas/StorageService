@@ -1,0 +1,55 @@
+services:
+    
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    env_file:
+      - .env
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console UI
+    volumes:
+      - ./volumes/minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - archium-network
+
+  storage.api:
+    container_name: storage.api
+    build:
+      context: .
+      dockerfile: src/API/Dockerfile
+    env_file:
+      - .env
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_USE_SSL: ${MINIO_USE_SSL}
+      SEAWEEDFS_MASTER_URL: ${SEAWEEDFS_MASTER_URL}
+      SEAWEEDFS_FILER_URL: ${SEAWEEDFS_FILER_URL}
+      AZURE_BLOB_CONNECTION_STRING: ${AZURE_BLOB_CONNECTION_STRING}
+    depends_on:
+      minio:
+        condition: service_healthy
+    ports:
+      - "5034:8080"
+    networks:
+      - archium-network
+    volumes:
+      - ../../error-codes/errors.json:/app/errors.json:ro
+    
+networks:
+  archium-network:
+    driver: bridge
+    name: archium-network

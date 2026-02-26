@@ -1,0 +1,19 @@
+{
+  "STORAGE": [
+    { "code": "STR-000", "message": "An unexpected error occurred" },
+    { "code": "STR-001", "message": "Bucket not found" },
+    { "code": "STR-002", "message": "Object not found" },
+    { "code": "STR-003", "message": "Failed to upload document" },
+    { "code": "STR-004", "message": "Failed to download document" },
+    { "code": "STR-005", "message": "Failed to delete document" },
+    { "code": "STR-006", "message": "Failed to create bucket" },
+    { "code": "STR-007", "message": "Invalid object key" },
+    { "code": "STR-008", "message": "Invalid bucket name" },
+    { "code": "STR-009", "message": "Failed to generate presigned URL" },
+    { "code": "STR-010", "message": "Failed to list objects" },
+    { "code": "STR-011", "message": "Failed to retrieve object metadata" },
+    { "code": "STR-012", "message": "Storage provider is not configured" },
+    { "code": "STR-013", "message": "Content is empty" },
+    { "code": "STR-014", "message": "Content type is required" }
+  ]
+}
