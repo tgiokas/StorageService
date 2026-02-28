@@ -58,7 +58,7 @@ public class DocumentIndexService : IDocumentIndexService
         }
     }
 
-    public async Task<Result<PagedResultDto<DocumentIndexDto>>> SearchAsync(DocumentSearchRequestDto request, CancellationToken ct = default)
+    public async Task<Result<PagedResultDto<DocumentIndexDto>>> SearchAsync(DocumentSearchDto request, CancellationToken ct = default)
     {
         try
         {
