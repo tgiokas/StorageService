@@ -22,5 +22,9 @@ public static class ErrorCodes
         public const string EncryptionFailed = "STR-015";
         public const string DecryptionFailed = "STR-016";
         public const string EncryptionKeyMissing = "STR-017";
+        public const string IndexEntryNotFound = "STR-018";
+        public const string IndexQueryFailed = "STR-019";
+        public const string IndexUpdateFailed = "STR-020";
+        public const string IndexDeleteFailed = "STR-021";
     }
 }

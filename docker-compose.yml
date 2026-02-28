@@ -22,8 +22,8 @@ services:
     networks:
       - archium-network
 
-  storage.api:
-    container_name: storage.api
+  storageservice.api:
+    container_name: storageservice.api
     build:
       context: .
       dockerfile: src/API/Dockerfile
@@ -46,8 +46,6 @@ services:
       - "5034:8080"
     networks:
       - archium-network
-    volumes:
-      - ./error-codes/errors.json:/app/errors.json:ro
     
 networks:
   archium-network:

@@ -17,6 +17,10 @@
     { "code": "STR-014", "message": "Content type is required" },
     { "code": "STR-015", "message": "Failed to encrypt document" },
     { "code": "STR-016", "message": "Failed to decrypt document" },
-    { "code": "STR-017", "message": "Encryption master key is not configured" }
+    { "code": "STR-017", "message": "Encryption master key is not configured" },
+    { "code": "STR-018", "message": "Document index entry not found" },
+    { "code": "STR-019", "message": "Failed to query document index" },
+    { "code": "STR-020", "message": "Failed to update document index entry" },
+    { "code": "STR-021", "message": "Failed to delete document index entry" }
   ]
 }
