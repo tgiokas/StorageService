@@ -15,9 +15,8 @@ public class DocumentsController : ControllerBase
     {
         _storageService = storageService;
     }
-
     
-    /// Upload a document to a bucket.   
+    /// Upload a document to a bucket.    
     [HttpPost("{bucket}/upload")]
     [RequestSizeLimit(524_288_000)] // 500 MB
     public async Task<IActionResult> Upload(string bucket, IFormFile file, [FromQuery] string? key = null, CancellationToken ct = default)
@@ -47,11 +46,10 @@ public class DocumentsController : ControllerBase
 
         return Ok(result);
     }
-
     
-    /// Download a document from a bucket.   
-    [HttpGet("{bucket}/download/{*key}")]
-    public async Task<IActionResult> Download(string bucket, string key, CancellationToken ct = default)
+    /// Download a document from a bucket.    
+    [HttpGet("{bucket}/download")]
+    public async Task<IActionResult> Download(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
         var result = await _storageService.DownloadAsync(bucket, key, ct);
 
@@ -63,11 +61,10 @@ public class DocumentsController : ControllerBase
         var data = result.Data!;
         return File(data.Content, data.ContentType, data.FileName);
     }
-
     
-    /// Delete a document from a bucket.   
-    [HttpDelete("{bucket}/{*key}")]
-    public async Task<IActionResult> Delete(string bucket, string key, CancellationToken ct = default)
+    /// Delete a document from a bucket.    
+    [HttpDelete("{bucket}")]
+    public async Task<IActionResult> Delete(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
         var result = await _storageService.DeleteAsync(bucket, key, ct);
 
@@ -78,11 +75,10 @@ public class DocumentsController : ControllerBase
 
         return Ok(result);
     }
-
     
-    /// Get metadata for a document.   
-    [HttpGet("{bucket}/metadata/{*key}")]
-    public async Task<IActionResult> GetMetadata(string bucket, string key, CancellationToken ct = default)
+    /// Get metadata for a document.    
+    [HttpGet("{bucket}/metadata")]
+    public async Task<IActionResult> GetMetadata(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
         var result = await _storageService.GetMetadataAsync(bucket, key, ct);
 
@@ -93,24 +89,22 @@ public class DocumentsController : ControllerBase
 
         return Ok(result);
     }
-
     
-    /// Check if a document exists in a bucket.   
-    [HttpGet("{bucket}/{*key}")]
-    public async Task<IActionResult> Exists(string bucket, string key, CancellationToken ct = default)
+    /// Check if a document exists in a bucket.    
+    [HttpGet("{bucket}/exists")]
+    public async Task<IActionResult> Exists(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
         var result = await _storageService.ExistsAsync(bucket, key, ct);
 
-        if (!result.Success || !result.Data)
+        if (!result.Success)
         {
-            return NotFound();
+            return Accepted(result);
         }
 
-        return Ok();
+        return Ok(result);
     }
-
     
-    /// List documents in a bucket, optionally filtered by prefix.   
+    /// List documents in a bucket, optionally filtered by prefix.    
     [HttpGet("{bucket}")]
     public async Task<IActionResult> List(string bucket, [FromQuery] string? prefix = null, CancellationToken ct = default)
     {
@@ -123,11 +117,10 @@ public class DocumentsController : ControllerBase
 
         return Ok(result);
     }
-
     
-    /// Generate a presigned URL for downloading a document.   
-    [HttpPost("{bucket}/presigned-url/{*key}")]
-    public async Task<IActionResult> GetPresignedUrl(string bucket, string key, [FromQuery] int expiryMinutes = 60, CancellationToken ct = default)
+    /// Generate a presigned URL for downloading a document.    
+    [HttpPost("{bucket}/presigned-url")]
+    public async Task<IActionResult> GetPresignedUrl(string bucket, [FromQuery] string key, [FromQuery] int expiryMinutes = 60, CancellationToken ct = default)
     {
         var request = new PresignedUrlRequest
         {
@@ -145,9 +138,8 @@ public class DocumentsController : ControllerBase
 
         return Ok(result);
     }
-
     
-    /// Ensure a bucket exists (create if it doesn't).   
+    /// Ensure a bucket exists (create if it doesn't).    
     [HttpPut("buckets/{bucket}")]
     public async Task<IActionResult> EnsureBucketExists(string bucket, CancellationToken ct = default)
     {

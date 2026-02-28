@@ -4,6 +4,25 @@ using StorageService.Domain.Enums;
 
 namespace StorageService.Infrastructure.Configuration;
 
+public class MinioSettings
+{
+    public string Endpoint { get; set; } = string.Empty;
+    public string AccessKey { get; set; } = string.Empty;
+    public string SecretKey { get; set; } = string.Empty;
+    public bool UseSsl { get; set; } = false;
+}
+
+public class SeaweedFsSettings
+{
+    public string MasterUrl { get; set; } = string.Empty;
+    public string FilerUrl { get; set; } = string.Empty;
+}
+
+public class AzureBlobSettings
+{
+    public string ConnectionString { get; set; } = string.Empty;
+}
+
 public class StorageSettings
 {
     public StorageProviderType Provider { get; set; } = StorageProviderType.MinIO;
@@ -11,10 +30,7 @@ public class StorageSettings
     public SeaweedFsSettings SeaweedFS { get; set; } = new();
     public AzureBlobSettings AzureBlob { get; set; } = new();
 
-    /// <summary>
     /// Binds StorageSettings from flat environment variables.
-    /// Throws ArgumentNullException if required variables are missing.
-    /// </summary>
     public static StorageSettings BindFromConfiguration(IConfiguration configuration)
     {
         var settings = new StorageSettings();
@@ -88,21 +104,3 @@ public class StorageSettings
     }
 }
 
-public class MinioSettings
-{
-    public string Endpoint { get; set; } = string.Empty;
-    public string AccessKey { get; set; } = string.Empty;
-    public string SecretKey { get; set; } = string.Empty;
-    public bool UseSsl { get; set; } = false;
-}
-
-public class SeaweedFsSettings
-{
-    public string MasterUrl { get; set; } = string.Empty;
-    public string FilerUrl { get; set; } = string.Empty;
-}
-
-public class AzureBlobSettings
-{
-    public string ConnectionString { get; set; } = string.Empty;
-}
