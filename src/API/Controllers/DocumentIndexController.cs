@@ -18,7 +18,7 @@ public class DocumentIndexController : ControllerBase
 
     /// Search the document index with filters, pagination, and sorting.
     [HttpPost("search")]
-    public async Task<IActionResult> Search([FromBody] DocumentSearchRequestDto request, CancellationToken ct = default)
+    public async Task<IActionResult> Search([FromBody] DocumentSearchDto request, CancellationToken ct = default)
     {
         var result = await _indexService.SearchAsync(request, ct);
 
