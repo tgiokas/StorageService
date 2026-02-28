@@ -1,6 +1,6 @@
 namespace StorageService.Application.Dtos;
 
-public class DownloadDocumentResponse
+public class DocumentDownloadDto
 {
     public required Stream Content { get; set; }
     public required string ContentType { get; set; }

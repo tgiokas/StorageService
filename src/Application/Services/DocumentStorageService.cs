@@ -24,7 +24,7 @@ public class DocumentStorageService : IDocumentStorageService
         _logger = logger;
     }
 
-    public async Task<Result<StorageObjectDto>> UploadAsync(UploadDocumentRequest request, CancellationToken ct = default)
+    public async Task<Result<StorageObjectDto>> UploadAsync(DocumentUploadDto request, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(request.Bucket))
             return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.InvalidBucket);
@@ -58,24 +58,24 @@ public class DocumentStorageService : IDocumentStorageService
         }
     }
 
-    public async Task<Result<DownloadDocumentResponse>> DownloadAsync(string bucket, string key, CancellationToken ct = default)
+    public async Task<Result<DocumentDownloadDto>> DownloadAsync(string bucket, string key, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(bucket))
-            return _errors.Fail<DownloadDocumentResponse>(ErrorCodes.STORAGE.InvalidBucket);
+            return _errors.Fail<DocumentDownloadDto>(ErrorCodes.STORAGE.InvalidBucket);
 
         if (string.IsNullOrWhiteSpace(key))
-            return _errors.Fail<DownloadDocumentResponse>(ErrorCodes.STORAGE.InvalidKey);
+            return _errors.Fail<DocumentDownloadDto>(ErrorCodes.STORAGE.InvalidKey);
 
         try
         {
             var exists = await _storageProvider.ExistsAsync(bucket, key, ct);
             if (!exists)
-                return _errors.Fail<DownloadDocumentResponse>(ErrorCodes.STORAGE.ObjectNotFound);
+                return _errors.Fail<DocumentDownloadDto>(ErrorCodes.STORAGE.ObjectNotFound);
 
             var metadata = await _storageProvider.GetMetadataAsync(bucket, key, ct);
             var stream = await _storageProvider.DownloadAsync(bucket, key, ct);
 
-            var response = new DownloadDocumentResponse
+            var response = new DocumentDownloadDto
             {
                 Content = stream,
                 ContentType = metadata.ContentType,
@@ -83,12 +83,12 @@ public class DocumentStorageService : IDocumentStorageService
                 Size = metadata.Size
             };
 
-            return Result<DownloadDocumentResponse>.Ok(response);
+            return Result<DocumentDownloadDto>.Ok(response);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to download document {Key} from bucket {Bucket}", key, bucket);
-            return _errors.Fail<DownloadDocumentResponse>(ErrorCodes.STORAGE.DownloadFailed);
+            return _errors.Fail<DocumentDownloadDto>(ErrorCodes.STORAGE.DownloadFailed);
         }
     }
 
@@ -179,7 +179,7 @@ public class DocumentStorageService : IDocumentStorageService
         }
     }
 
-    public async Task<Result<string>> GetPresignedUrlAsync(PresignedUrlRequest request, CancellationToken ct = default)
+    public async Task<Result<string>> GetPresignedUrlAsync(PresignedUrlDto request, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(request.Bucket))
             return _errors.Fail<string>(ErrorCodes.STORAGE.InvalidBucket);

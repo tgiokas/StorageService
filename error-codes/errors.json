@@ -14,6 +14,9 @@
     { "code": "STR-011", "message": "Failed to retrieve object metadata" },
     { "code": "STR-012", "message": "Storage provider is not configured" },
     { "code": "STR-013", "message": "Content is empty" },
-    { "code": "STR-014", "message": "Content type is required" }
+    { "code": "STR-014", "message": "Content type is required" },
+    { "code": "STR-015", "message": "Failed to encrypt document" },
+    { "code": "STR-016", "message": "Failed to decrypt document" },
+    { "code": "STR-017", "message": "Encryption master key is not configured" }
   ]
 }

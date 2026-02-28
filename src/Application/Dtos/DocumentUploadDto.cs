@@ -1,6 +1,6 @@
 namespace StorageService.Application.Dtos;
 
-public class UploadDocumentRequest
+public class DocumentUploadDto
 {
     public required string Bucket { get; set; }
     public required string Key { get; set; }

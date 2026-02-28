@@ -35,7 +35,7 @@ public class StorageSettings
     {
         var settings = new StorageSettings();
 
-        // Provider (always required)
+        // Provider 
         var providerStr = configuration["STORAGE_PROVIDER"]
             ?? throw new ArgumentNullException(nameof(configuration), "STORAGE_PROVIDER is not set.");
 

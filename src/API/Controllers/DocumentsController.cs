@@ -29,7 +29,7 @@ public class DocumentsController : ControllerBase
         var objectKey = key ?? file.FileName;
 
         using var stream = file.OpenReadStream();
-        var request = new UploadDocumentRequest
+        var request = new DocumentUploadDto
         {
             Bucket = bucket,
             Key = objectKey,
@@ -104,7 +104,7 @@ public class DocumentsController : ControllerBase
         return Ok(result);
     }
     
-    /// List documents in a bucket, optionally filtered by prefix.    
+    /// List documents in a bucket, optionally filtered by prefix.
     [HttpGet("{bucket}")]
     public async Task<IActionResult> List(string bucket, [FromQuery] string? prefix = null, CancellationToken ct = default)
     {
@@ -122,7 +122,7 @@ public class DocumentsController : ControllerBase
     [HttpPost("{bucket}/presigned-url")]
     public async Task<IActionResult> GetPresignedUrl(string bucket, [FromQuery] string key, [FromQuery] int expiryMinutes = 60, CancellationToken ct = default)
     {
-        var request = new PresignedUrlRequest
+        var request = new PresignedUrlDto
         {
             Bucket = bucket,
             Key = key,

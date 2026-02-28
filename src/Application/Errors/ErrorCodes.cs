@@ -19,5 +19,8 @@ public static class ErrorCodes
         public const string ProviderNotConfigured = "STR-012";
         public const string ContentEmpty = "STR-013";
         public const string ContentTypeMissing = "STR-014";
+        public const string EncryptionFailed = "STR-015";
+        public const string DecryptionFailed = "STR-016";
+        public const string EncryptionKeyMissing = "STR-017";
     }
 }

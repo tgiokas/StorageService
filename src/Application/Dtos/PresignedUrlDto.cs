@@ -1,6 +1,6 @@
 namespace StorageService.Application.Dtos;
 
-public class PresignedUrlRequest
+public class PresignedUrlDto
 {
     public required string Bucket { get; set; }
     public required string Key { get; set; }
