@@ -1,6 +1,6 @@
 namespace StorageService.Application.Dtos;
 
-public class DocumentSearchRequestDto
+public class DocumentSearchDto
 {
     public string? Bucket { get; set; }
     public string? KeyPrefix { get; set; }
