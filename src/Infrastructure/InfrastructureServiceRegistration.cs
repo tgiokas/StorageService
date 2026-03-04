@@ -67,8 +67,9 @@ public static class InfrastructureServiceRegistration
         {
             services.AddSingleton<IStorageProvider>(sp => ResolveInnerProvider(sp, settings.Provider));
         }
-
-        var connectionString = configuration["STORAGE_DB_CONNECTION"];
+        
+        var connectionString = configuration.GetConnectionString("DefaultConnection");        
+        //var connectionString = configuration["STORAGE_DB_CONNECTION"];
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new InvalidOperationException("Database connection string 'STORAGE_DB_CONNECTION' is not configured.");
 
