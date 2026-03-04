@@ -1,11 +1,13 @@
+using Microsoft.EntityFrameworkCore;
+
 using Serilog;
 
 using StorageService.Api.Middlewares;
 using StorageService.Application;
+using StorageService.Application.Errors;
+using StorageService.Application.Interfaces;
 using StorageService.Infrastructure;
 using StorageService.Infrastructure.Database;
-
-using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,7 +28,15 @@ builder.Host.UseSerilog();
 builder.Services.AddApplicationServices();
 
 // Add Storage Infrastructure (provider selection + encryption + indexing + error catalog)
-builder.Services.AddStorageInfrastructure(builder.Configuration);
+builder.Services.AddStorageInfrastructure(builder.Configuration, "postgresql");
+
+// Add Error Catalog Path
+var path = Path.Combine(builder.Environment.ContentRootPath, "errors.json");
+if (!File.Exists(path))
+    throw new FileNotFoundException($"errors.json not found at: {path}");
+Log.Information("Using error catalog at: {Path}", path);
+var errorcat = ErrorCatalog.LoadFromFile(path);
+builder.Services.AddSingleton<IErrorCatalog>(errorcat);
 
 builder.Services.AddControllers();
 
@@ -54,7 +64,7 @@ var indexingEnabled = builder.Configuration["INDEXING_ENABLED"];
 if (!string.IsNullOrWhiteSpace(indexingEnabled) && bool.TryParse(indexingEnabled, out var isEnabled) && isEnabled)
 {
     using var scope = app.Services.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<StorageDbContext>();
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     dbContext.Database.Migrate();
     Log.Information("Indexing database migrations applied.");
 }

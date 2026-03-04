@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
-
+using StorageService.Application.Interfaces;
 using StorageService.Domain.Entities;
 
 namespace StorageService.Infrastructure.Database;
 
-public class StorageDbContext : DbContext
+public class ApplicationDbContext : DbContext, IApplicationDbContext
 {
-    public StorageDbContext(DbContextOptions<StorageDbContext> options) : base(options)
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
     }
 

@@ -8,9 +8,9 @@ namespace StorageService.Infrastructure.Repositories;
 
 public class DocumentIndexRepository : IDocumentIndexRepository
 {
-    private readonly StorageDbContext _dbContext;
+    private readonly ApplicationDbContext _dbContext;
 
-    public DocumentIndexRepository(StorageDbContext dbContext)
+    public DocumentIndexRepository(ApplicationDbContext dbContext)
     {
         _dbContext = dbContext;
     }

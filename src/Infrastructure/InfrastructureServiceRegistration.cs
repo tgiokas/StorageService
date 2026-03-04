@@ -1,10 +1,9 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using StorageService.Application.Errors;
-using StorageService.Application.Interfaces;
 using StorageService.Domain.Enums;
 using StorageService.Domain.Interfaces;
 using StorageService.Infrastructure.Configuration;
@@ -12,14 +11,16 @@ using StorageService.Infrastructure.Encryption;
 using StorageService.Infrastructure.Providers.MinIO;
 using StorageService.Infrastructure.Providers.SeaweedFS;
 using StorageService.Infrastructure.Providers.AzureBlob;
+using StorageService.Infrastructure.Repositories;
+using StorageService.Infrastructure.Database;
 
 namespace StorageService.Infrastructure;
 
 public static class InfrastructureServiceRegistration
 {
-    public static IServiceCollection AddStorageInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddStorageInfrastructure(this IServiceCollection services, IConfiguration configuration, string databaseProvider)
     {
-        // Bind from flat env variables (with appsettings.json as fallback)
+        // Bind from env variables (with appsettings.json as fallback)
         var settings = StorageSettings.BindFromConfiguration(configuration);
 
         // Register as singleton so IOptions<StorageSettings> works everywhere
@@ -67,10 +68,32 @@ public static class InfrastructureServiceRegistration
             services.AddSingleton<IStorageProvider>(sp => ResolveInnerProvider(sp, settings.Provider));
         }
 
-        // Error catalog
-        var errorsPath = configuration["ErrorCatalogPath"] ?? "errors.json";
-        var errorCatalog = ErrorCatalog.LoadFromFile(errorsPath);
-        services.AddSingleton<IErrorCatalog>(errorCatalog);
+        var connectionString = configuration["STORAGE_DB_CONNECTION"];
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException("Database connection string 'STORAGE_DB_CONNECTION' is not configured.");
+
+        services.AddDbContext<ApplicationDbContext>((sp, options) =>
+        {
+            switch (databaseProvider.ToLower())
+            {
+                case "sqlserver":
+                    //options.UseSqlServer(connectionString);
+                    break;
+
+                case "postgresql":
+                    options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention();
+                    break;
+
+                case "sqlite":
+                    //options.UseSqlite(connectionString);                     
+                    break;
+
+                default:
+                    throw new ArgumentException($"Unsupported database provider: {databaseProvider}");
+            }
+        });
+
+        services.AddScoped<IDocumentIndexRepository, DocumentIndexRepository>();
 
         return services;
     }

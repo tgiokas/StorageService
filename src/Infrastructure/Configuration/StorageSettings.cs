@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Configuration;
-
 using StorageService.Domain.Enums;
 
 namespace StorageService.Infrastructure.Configuration;

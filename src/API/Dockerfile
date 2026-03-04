@@ -2,10 +2,7 @@
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 80
-EXPOSE 443
-
-# Install curl
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+EXPOSE 8081
 
 # This stage is used to build the service project
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
@@ -17,7 +14,7 @@ COPY ["src/Domain/StorageService.Domain.csproj", "src/Domain/"]
 COPY ["src/Infrastructure/StorageService.Infrastructure.csproj", "src/Infrastructure/"]
 RUN dotnet restore "./src/API/StorageService.Api.csproj"
 COPY . .
-WORKDIR "src/API"
+WORKDIR "/src/API"
 RUN dotnet build "./StorageService.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage
@@ -31,7 +28,7 @@ WORKDIR /app
 COPY --from=publish /app/publish .
 
 # --- minimal additions: copy the error catalog and set its path ---
-COPY /error-codes/errors.json /app/errors.json
+COPY ../../error-codes/errors.json /app/errors.json
 # ------------------------------------------------------------------
 
 ENTRYPOINT ["dotnet", "StorageService.Api.dll"]

@@ -12,6 +12,8 @@ services:
     ports:
       - "9000:9000"   # API
       - "9001:9001"   # Console UI
+    networks:
+      - archium-network
     volumes:
       - ./volumes/minio_data:/data
     healthcheck:
@@ -19,8 +21,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - archium-network
+
 
   storageservice.api:
     container_name: storageservice.api
@@ -46,6 +47,8 @@ services:
       - "5034:8080"
     networks:
       - archium-network
+    volumes:
+      - ./error-codes/errors.json:/app/errors.json:ro
     
 networks:
   archium-network:
