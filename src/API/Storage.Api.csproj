@@ -5,8 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>false</InvariantGlobalization>
-    <RootNamespace>StorageService.Api</RootNamespace>
-    <AssemblyName>StorageService.Api</AssemblyName>
+    <RootNamespace>Storage.Api</RootNamespace>
+    <AssemblyName>Storage.Api</AssemblyName>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <DockerfileContext>..\..</DockerfileContext>
   </PropertyGroup>
@@ -25,8 +25,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Application\StorageService.Application.csproj" />
-    <ProjectReference Include="..\Infrastructure\StorageService.Infrastructure.csproj" />
+    <ProjectReference Include="..\Application\Storage.Application.csproj" />
+    <ProjectReference Include="..\Infrastructure\Storage.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

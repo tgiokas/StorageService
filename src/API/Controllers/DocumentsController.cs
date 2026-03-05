@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 
-using StorageService.Application.Dtos;
-using StorageService.Application.Interfaces;
+using Storage.Application.Dtos;
+using Storage.Application.Interfaces;
 
-namespace StorageService.Api.Controllers;
+namespace Storage.Api.Controllers;
 
 [ApiController]
 [Route("[controller]")]
@@ -37,7 +37,7 @@ public class DocumentsController : ControllerBase
             ContentType = file.ContentType
         };
 
-        var result = await _storageService.UploadAsync(request, ct);
+        var result = await _Storage.UploadAsync(request, ct);
 
         if (!result.Success)
         {
@@ -51,7 +51,7 @@ public class DocumentsController : ControllerBase
     [HttpGet("{bucket}/download")]
     public async Task<IActionResult> Download(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
-        var result = await _storageService.DownloadAsync(bucket, key, ct);
+        var result = await _Storage.DownloadAsync(bucket, key, ct);
 
         if (!result.Success)
         {
@@ -66,7 +66,7 @@ public class DocumentsController : ControllerBase
     [HttpDelete("{bucket}")]
     public async Task<IActionResult> Delete(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
-        var result = await _storageService.DeleteAsync(bucket, key, ct);
+        var result = await _Storage.DeleteAsync(bucket, key, ct);
 
         if (!result.Success)
         {
@@ -80,7 +80,7 @@ public class DocumentsController : ControllerBase
     [HttpGet("{bucket}/metadata")]
     public async Task<IActionResult> GetMetadata(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
-        var result = await _storageService.GetMetadataAsync(bucket, key, ct);
+        var result = await _Storage.GetMetadataAsync(bucket, key, ct);
 
         if (!result.Success)
         {
@@ -94,7 +94,7 @@ public class DocumentsController : ControllerBase
     [HttpGet("{bucket}/exists")]
     public async Task<IActionResult> Exists(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
-        var result = await _storageService.ExistsAsync(bucket, key, ct);
+        var result = await _Storage.ExistsAsync(bucket, key, ct);
 
         if (!result.Success)
         {
@@ -108,7 +108,7 @@ public class DocumentsController : ControllerBase
     [HttpGet("{bucket}")]
     public async Task<IActionResult> List(string bucket, [FromQuery] string? prefix = null, CancellationToken ct = default)
     {
-        var result = await _storageService.ListAsync(bucket, prefix, ct);
+        var result = await _Storage.ListAsync(bucket, prefix, ct);
 
         if (!result.Success)
         {
@@ -129,7 +129,7 @@ public class DocumentsController : ControllerBase
             ExpiryMinutes = expiryMinutes
         };
 
-        var result = await _storageService.GetPresignedUrlAsync(request, ct);
+        var result = await _Storage.GetPresignedUrlAsync(request, ct);
 
         if (!result.Success)
         {
@@ -143,7 +143,7 @@ public class DocumentsController : ControllerBase
     [HttpPut("buckets/{bucket}")]
     public async Task<IActionResult> EnsureBucketExists(string bucket, CancellationToken ct = default)
     {
-        var result = await _storageService.EnsureBucketExistsAsync(bucket, ct);
+        var result = await _Storage.EnsureBucketExistsAsync(bucket, ct);
 
         if (!result.Success)
         {

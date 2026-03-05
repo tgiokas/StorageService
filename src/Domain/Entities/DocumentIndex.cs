@@ -1,4 +1,4 @@
-namespace StorageService.Domain.Entities;
+namespace Storage.Domain.Entities;
 
 public class DocumentIndex
 {

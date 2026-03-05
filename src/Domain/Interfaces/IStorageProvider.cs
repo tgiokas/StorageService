@@ -1,6 +1,6 @@
-using StorageService.Domain.ValueObjects;
+using Storage.Domain.ValueObjects;
 
-namespace StorageService.Domain.Interfaces;
+namespace Storage.Domain.Interfaces;
 
 public interface IStorageProvider
 {

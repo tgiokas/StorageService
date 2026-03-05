@@ -1,9 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 
-using StorageService.Application.Interfaces;
-using StorageService.Application.Services;
+using Storage.Application.Interfaces;
+using Storage.Application.Services;
 
-namespace StorageService.Application;
+namespace Storage.Application;
 
 public static class ApplicationServiceRegistration
 {

@@ -1,13 +1,13 @@
 using Microsoft.Extensions.Logging;
 
-using StorageService.Application.Dtos;
-using StorageService.Application.Errors;
-using StorageService.Application.Interfaces;
-using StorageService.Domain.Entities;
-using StorageService.Domain.Interfaces;
-using StorageService.Domain.ValueObjects;
+using Storage.Application.Dtos;
+using Storage.Application.Errors;
+using Storage.Application.Interfaces;
+using Storage.Domain.Entities;
+using Storage.Domain.Interfaces;
+using Storage.Domain.ValueObjects;
 
-namespace StorageService.Application.Services;
+namespace Storage.Application.Services;
 
 public class DocumentStorageService : IDocumentStorageService
 {

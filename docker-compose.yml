@@ -17,7 +17,7 @@ services:
     networks:
       - archium-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${STORAGE_POSTGRES_USER:-postgres} -d ${STORAGE_DB_POSTGRES_PASSWORD:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${STORAGE_DB_POSTGRES_USER:-postgres} -d ${STORAGE_DB_POSTGRES_DB:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -45,8 +45,8 @@ services:
       timeout: 5s
       retries: 5
 
-  storageservice.api:
-    container_name: storageservice.api
+  storage-api:
+    container_name: storage-api
     build:
       context: .
       dockerfile: src/API/Dockerfile

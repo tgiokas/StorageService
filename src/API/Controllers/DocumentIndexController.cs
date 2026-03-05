@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 
-using StorageService.Application.Dtos;
-using StorageService.Application.Interfaces;
+using Storage.Application.Dtos;
+using Storage.Application.Interfaces;
 
-namespace StorageService.Api.Controllers;
+namespace Storage.Api.Controllers;
 
 [ApiController]
 [Route("[controller]")]

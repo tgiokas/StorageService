@@ -4,11 +4,11 @@ using Microsoft.Extensions.Options;
 using Minio;
 using Minio.DataModel.Args;
 
-using StorageService.Domain.Interfaces;
-using StorageService.Domain.ValueObjects;
-using StorageService.Infrastructure.Configuration;
+using Storage.Domain.Interfaces;
+using Storage.Domain.ValueObjects;
+using Storage.Infrastructure.Configuration;
 
-namespace StorageService.Infrastructure.Providers.MinIO;
+namespace Storage.Infrastructure.Providers.MinIO;
 
 public class MinioStorageProvider : IStorageProvider
 {

@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace StorageService.Api.Middlewares;
+namespace Storage.Api.Middlewares;
 
 public class LogMiddleware
 {

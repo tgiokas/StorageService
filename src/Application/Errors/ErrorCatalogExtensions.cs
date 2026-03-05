@@ -1,7 +1,7 @@
-using StorageService.Application.Dtos;
-using StorageService.Application.Interfaces;
+using Storage.Application.Dtos;
+using Storage.Application.Interfaces;
 
-namespace StorageService.Application.Errors;
+namespace Storage.Application.Errors;
 
 public static class ErrorCatalogExtensions
 {

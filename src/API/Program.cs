@@ -2,12 +2,12 @@ using Microsoft.EntityFrameworkCore;
 
 using Serilog;
 
-using StorageService.Api.Middlewares;
-using StorageService.Application;
-using StorageService.Application.Errors;
-using StorageService.Application.Interfaces;
-using StorageService.Infrastructure;
-using StorageService.Infrastructure.Database;
+using Storage.Api.Middlewares;
+using Storage.Application;
+using Storage.Application.Errors;
+using Storage.Application.Interfaces;
+using Storage.Infrastructure;
+using Storage.Infrastructure.Database;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,7 +60,7 @@ if (builder.Environment.IsDevelopment())
 var app = builder.Build();
 
 // Apply indexing DB migrations if indexing is enabled
-var indexingEnabled = builder.Configuration["INDEXING_ENABLED"];
+var indexingEnabled = builder.Configuration["STORAGE_INDEXING_ENABLED"];
 if (!string.IsNullOrWhiteSpace(indexingEnabled) && bool.TryParse(indexingEnabled, out var isEnabled) && isEnabled)
 {
     using var scope = app.Services.CreateScope();

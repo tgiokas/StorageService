@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 
-using StorageService.Domain.Interfaces;
-using StorageService.Domain.ValueObjects;
+using Storage.Domain.Interfaces;
+using Storage.Domain.ValueObjects;
 
-namespace StorageService.Infrastructure.Encryption;
+namespace Storage.Infrastructure.Encryption;
 
 /// A Decorator that wraps any IStorageProvider with encryption.
 ///

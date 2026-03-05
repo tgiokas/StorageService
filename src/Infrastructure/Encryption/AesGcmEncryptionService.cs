@@ -3,10 +3,10 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using StorageService.Domain.Interfaces;
-using StorageService.Infrastructure.Configuration;
+using Storage.Domain.Interfaces;
+using Storage.Infrastructure.Configuration;
 
-namespace StorageService.Infrastructure.Encryption;
+namespace Storage.Infrastructure.Encryption;
 
 /// AES-256-GCM encryption service.
 /// 

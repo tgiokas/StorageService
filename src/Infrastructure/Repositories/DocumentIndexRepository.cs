@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 
-using StorageService.Domain.Entities;
-using StorageService.Domain.Interfaces;
-using StorageService.Infrastructure.Database;
+using Storage.Domain.Entities;
+using Storage.Domain.Interfaces;
+using Storage.Infrastructure.Database;
 
-namespace StorageService.Infrastructure.Repositories;
+namespace Storage.Infrastructure.Repositories;
 
 public class DocumentIndexRepository : IDocumentIndexRepository
 {

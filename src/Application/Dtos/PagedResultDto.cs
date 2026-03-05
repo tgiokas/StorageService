@@ -1,4 +1,4 @@
-namespace StorageService.Application.Dtos;
+namespace Storage.Application.Dtos;
 
 public class PagedResultDto<T>
 {

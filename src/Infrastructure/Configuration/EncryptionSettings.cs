@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace StorageService.Infrastructure.Configuration;
+namespace Storage.Infrastructure.Configuration;
 
 public class EncryptionSettings
 {

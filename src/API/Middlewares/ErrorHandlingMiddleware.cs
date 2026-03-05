@@ -3,9 +3,9 @@ using System.Text.Json;
 
 using Serilog;
 
-using StorageService.Application.Dtos;
+using Storage.Application.Dtos;
 
-namespace StorageService.Api.Middlewares;
+namespace Storage.Api.Middlewares;
 
 public class ErrorHandlingMiddleware
 {

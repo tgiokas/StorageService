@@ -1,6 +1,6 @@
-using StorageService.Domain.Entities;
+using Storage.Domain.Entities;
 
-namespace StorageService.Domain.Interfaces;
+namespace Storage.Domain.Interfaces;
 
 public interface IDocumentIndexRepository
 {

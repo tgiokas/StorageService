@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using StorageService.Application.Interfaces;
-using StorageService.Domain.Entities;
+using Storage.Application.Interfaces;
+using Storage.Domain.Entities;
 
-namespace StorageService.Infrastructure.Database;
+namespace Storage.Infrastructure.Database;
 
 public class ApplicationDbContext : DbContext, IApplicationDbContext
 {

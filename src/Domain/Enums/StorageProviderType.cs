@@ -1,4 +1,4 @@
-namespace StorageService.Domain.Enums;
+namespace Storage.Domain.Enums;
 
 public enum StorageProviderType
 {

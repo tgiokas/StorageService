@@ -1,6 +1,6 @@
-using StorageService.Application.Dtos;
+using Storage.Application.Dtos;
 
-namespace StorageService.Application.Interfaces;
+namespace Storage.Application.Interfaces;
 
 public interface IDocumentStorageService
 {

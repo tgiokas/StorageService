@@ -4,8 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>StorageService.Infrastructure</RootNamespace>
-    <AssemblyName>StorageService.Infrastructure</AssemblyName>
+    <RootNamespace>Storage.Infrastructure</RootNamespace>
+    <AssemblyName>Storage.Infrastructure</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,8 +24,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Application\StorageService.Application.csproj" />
-    <ProjectReference Include="..\Domain\StorageService.Domain.csproj" />
+    <ProjectReference Include="..\Application\Storage.Application.csproj" />
+    <ProjectReference Include="..\Domain\Storage.Domain.csproj" />
   </ItemGroup>
 
 </Project>

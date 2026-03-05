@@ -1,4 +1,4 @@
-namespace StorageService.Domain.ValueObjects;
+namespace Storage.Domain.ValueObjects;
 
 public class StorageObjectInfo
 {

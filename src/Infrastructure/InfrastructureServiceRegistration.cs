@@ -4,29 +4,29 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using StorageService.Domain.Enums;
-using StorageService.Domain.Interfaces;
-using StorageService.Infrastructure.Configuration;
-using StorageService.Infrastructure.Encryption;
-using StorageService.Infrastructure.Providers.MinIO;
-using StorageService.Infrastructure.Providers.SeaweedFS;
-using StorageService.Infrastructure.Providers.AzureBlob;
-using StorageService.Infrastructure.Repositories;
-using StorageService.Infrastructure.Database;
+using Storage.Domain.Enums;
+using Storage.Domain.Interfaces;
+using Storage.Infrastructure.Configuration;
+using Storage.Infrastructure.Database;
+using Storage.Infrastructure.Encryption;
+using Storage.Infrastructure.Providers.MinIO;
+using Storage.Infrastructure.Providers.SeaweedFS;
+using Storage.Infrastructure.Providers.AzureBlob;
+using Storage.Infrastructure.Repositories;
 
-namespace StorageService.Infrastructure;
+namespace Storage.Infrastructure;
 
 public static class InfrastructureServiceRegistration
 {
     public static IServiceCollection AddStorageInfrastructure(this IServiceCollection services, IConfiguration configuration, string databaseProvider)
     {
-        // Bind from env variables (with appsettings.json as fallback)
+        // Bind StorageSettings from env variables
         var settings = StorageSettings.BindFromConfiguration(configuration);
 
         // Register as singleton so IOptions<StorageSettings> works everywhere
         services.AddSingleton(Options.Create(settings));
 
-        // Bind encryption settings
+        // Bind EncryptionSettings
         var encryptionSettings = EncryptionSettings.BindFromConfiguration(configuration);
         services.AddSingleton(Options.Create(encryptionSettings));
 

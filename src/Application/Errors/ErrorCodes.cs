@@ -1,4 +1,4 @@
-namespace StorageService.Application.Errors;
+namespace Storage.Application.Errors;
 
 public static class ErrorCodes
 {

@@ -1,4 +1,4 @@
-namespace StorageService.Application.Interfaces;
+namespace Storage.Application.Interfaces;
 
 public record ErrorInfo(string Code, string Message);
 

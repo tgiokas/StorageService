@@ -1,4 +1,4 @@
-namespace StorageService.Domain.Interfaces;
+namespace Storage.Domain.Interfaces;
 
 public interface IEncryptionService
 {

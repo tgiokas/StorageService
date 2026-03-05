@@ -4,8 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>StorageService.Application</RootNamespace>
-    <AssemblyName>StorageService.Application</AssemblyName>
+    <RootNamespace>Storage.Application</RootNamespace>
+    <AssemblyName>Storage.Application</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Domain\StorageService.Domain.csproj" />
+    <ProjectReference Include="..\Domain\Storage.Domain.csproj" />
   </ItemGroup>
 
 </Project>
