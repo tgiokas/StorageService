@@ -78,11 +78,6 @@ bld/
 Logs/
 *.log
 
-# Environment variables
-.env
-.env.local
-.env.*.local
-
 # Docker
 docker-compose.override.yml
 /volumes
