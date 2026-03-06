@@ -14,11 +14,6 @@ public class DocumentIndex
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastModified { get; set; }
 
-    /// Key-value tags for categorization and filtering.
-    /// Stored as JSON in Postgres.
+    /// Key-value tags for categorization, filtering, and any custom metadata.
     public Dictionary<string, string> Tags { get; set; } = new();
-
-    /// Free-form custom metadata.
-    /// Stored as JSON in Postgres.
-    public Dictionary<string, string> CustomMetadata { get; set; } = new();
 }

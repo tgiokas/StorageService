@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 
 using Storage.Application.Dtos;
@@ -15,11 +16,17 @@ public class DocumentsController : ControllerBase
     {
         _storageService = storageService;
     }
-
+   
     /// Upload a document to a bucket.
+    /// Tags are optional JSON key-value pairs for indexing (e.g. ?tags={"department":"hr","year":"2025"})    
     [HttpPost("{bucket}/upload")]
     [RequestSizeLimit(524_288_000)] // 500 MB
-    public async Task<IActionResult> Upload(string bucket, IFormFile file, [FromQuery] string? key = null, CancellationToken ct = default)
+    public async Task<IActionResult> Upload(
+        string bucket,
+        IFormFile file,
+        [FromQuery] string? key = null,
+        [FromQuery] string? tags = null,
+        CancellationToken ct = default)
     {
         if (file == null || file.Length == 0)
         {
@@ -28,13 +35,28 @@ public class DocumentsController : ControllerBase
 
         var objectKey = key ?? file.FileName;
 
+        // Parse tags from JSON query string if provided
+        Dictionary<string, string>? parsedTags = null;
+        if (!string.IsNullOrWhiteSpace(tags))
+        {
+            try
+            {
+                parsedTags = JsonSerializer.Deserialize<Dictionary<string, string>>(tags);
+            }
+            catch
+            {
+                return BadRequest(Result<string>.Fail("Invalid tags format. Expected JSON object.", "STR-007"));
+            }
+        }
+
         using var stream = file.OpenReadStream();
         var request = new DocumentUploadDto
         {
             Bucket = bucket,
             Key = objectKey,
             Content = stream,
-            ContentType = file.ContentType
+            ContentType = file.ContentType,
+            Tags = parsedTags
         };
 
         var result = await _storageService.UploadAsync(request, ct);
@@ -46,8 +68,8 @@ public class DocumentsController : ControllerBase
 
         return Ok(result);
     }
-
-    /// Download a document from a bucket.
+   
+    /// Download a document from a bucket.    
     [HttpGet("{bucket}/download")]
     public async Task<IActionResult> Download(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
@@ -61,8 +83,8 @@ public class DocumentsController : ControllerBase
         var data = result.Data!;
         return File(data.Content, data.ContentType, data.FileName);
     }
-
-    /// Delete a document from a bucket.   
+   
+    /// Delete a document from a bucket.    
     [HttpDelete("{bucket}")]
     public async Task<IActionResult> Delete(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
@@ -75,8 +97,8 @@ public class DocumentsController : ControllerBase
 
         return Ok(result);
     }
-  
-    /// Get metadata for a document. 
+   
+    /// Get metadata for a document.    
     [HttpGet("{bucket}/metadata")]
     public async Task<IActionResult> GetMetadata(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
@@ -90,7 +112,7 @@ public class DocumentsController : ControllerBase
         return Ok(result);
     }
    
-    /// Check if a document exists in a bucket. 
+    /// Check if a document exists in a bucket.    
     [HttpGet("{bucket}/exists")]
     public async Task<IActionResult> Exists(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
@@ -104,7 +126,7 @@ public class DocumentsController : ControllerBase
         return Ok(result);
     }
    
-    /// List documents in a bucket, optionally filtered by prefix. 
+    /// List documents in a bucket, optionally filtered by prefix.    
     [HttpGet("{bucket}")]
     public async Task<IActionResult> List(string bucket, [FromQuery] string? prefix = null, CancellationToken ct = default)
     {
@@ -118,7 +140,7 @@ public class DocumentsController : ControllerBase
         return Ok(result);
     }
    
-    /// Generate a presigned URL for downloading a document. 
+    /// Generate a presigned URL for downloading a document.    
     [HttpPost("{bucket}/presigned-url")]
     public async Task<IActionResult> GetPresignedUrl(string bucket, [FromQuery] string key, [FromQuery] int expiryMinutes = 60, CancellationToken ct = default)
     {
@@ -139,7 +161,7 @@ public class DocumentsController : ControllerBase
         return Ok(result);
     }
    
-    /// Ensure a bucket exists (create if it doesn't). 
+    /// Ensure a bucket exists (create if it doesn't).    
     [HttpPut("buckets/{bucket}")]
     public async Task<IActionResult> EnsureBucketExists(string bucket, CancellationToken ct = default)
     {

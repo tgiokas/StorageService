@@ -7,7 +7,6 @@ using Storage.Application;
 using Storage.Application.Errors;
 using Storage.Application.Interfaces;
 using Storage.Infrastructure;
-using Storage.Infrastructure.Database;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -59,15 +58,6 @@ if (builder.Environment.IsDevelopment())
 
 var app = builder.Build();
 
-// Apply indexing DB migrations if indexing is enabled
-var indexingEnabled = builder.Configuration["STORAGE_INDEXING_ENABLED"];
-if (!string.IsNullOrWhiteSpace(indexingEnabled) && bool.TryParse(indexingEnabled, out var isEnabled) && isEnabled)
-{
-    using var scope = app.Services.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    dbContext.Database.Migrate();
-    Log.Information("Indexing database migrations applied.");
-}
 
 // Expose a simple health endpoint at /health
 app.MapHealthChecks("/health");

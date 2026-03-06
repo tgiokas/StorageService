@@ -120,28 +120,6 @@ public class DocumentIndexService : IDocumentIndexService
         }
     }
 
-    public async Task<Result<DocumentIndexDto>> UpdateMetadataAsync(Guid id, Dictionary<string, string> metadata, CancellationToken ct = default)
-    {
-        try
-        {
-            var doc = await _repository.GetByIdAsync(id, ct);
-            if (doc == null)
-                return _errors.Fail<DocumentIndexDto>(ErrorCodes.STORAGE.IndexEntryNotFound);
-
-            doc.CustomMetadata = metadata;
-            doc.LastModified = DateTime.UtcNow;
-            await _repository.UpdateAsync(doc, ct);
-
-            _logger.LogInformation("Updated custom metadata for index entry {Id}", id);
-            return Result<DocumentIndexDto>.Ok(MapToDto(doc), "Metadata updated successfully.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update metadata for index entry {Id}", id);
-            return _errors.Fail<DocumentIndexDto>(ErrorCodes.STORAGE.IndexUpdateFailed);
-        }
-    }
-
     private static DocumentIndexDto MapToDto(DocumentIndex doc) => new()
     {
         Id = doc.Id,
@@ -155,7 +133,6 @@ public class DocumentIndexService : IDocumentIndexService
         UploadedBy = doc.UploadedBy,
         UploadedAt = doc.UploadedAt,
         LastModified = doc.LastModified,
-        Tags = doc.Tags,
-        CustomMetadata = doc.CustomMetadata
+        Tags = doc.Tags
     };
 }

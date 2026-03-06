@@ -14,5 +14,4 @@ public class DocumentIndexDto
     public DateTime UploadedAt { get; set; }
     public DateTime? LastModified { get; set; }
     public Dictionary<string, string> Tags { get; set; } = new();
-    public Dictionary<string, string> CustomMetadata { get; set; } = new();
 }

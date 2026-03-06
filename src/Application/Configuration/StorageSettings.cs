@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Storage.Domain.Enums;
 
-namespace Storage.Infrastructure.Configuration;
+namespace Storage.Application.Configuration;
 
 public class MinioSettings
 {

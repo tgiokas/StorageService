@@ -6,13 +6,12 @@ using Microsoft.Extensions.Options;
 
 using Storage.Domain.Enums;
 using Storage.Domain.Interfaces;
-using Storage.Infrastructure.Configuration;
-using Storage.Infrastructure.Database;
+using Storage.Application.Configuration;
 using Storage.Infrastructure.Encryption;
+using Storage.Infrastructure.Indexing;
 using Storage.Infrastructure.Providers.MinIO;
 using Storage.Infrastructure.Providers.SeaweedFS;
 using Storage.Infrastructure.Providers.AzureBlob;
-using Storage.Infrastructure.Repositories;
 
 namespace Storage.Infrastructure;
 
@@ -22,13 +21,15 @@ public static class InfrastructureServiceRegistration
     {
         // Bind StorageSettings from env variables
         var settings = StorageSettings.BindFromConfiguration(configuration);
-
-        // Register as singleton so IOptions<StorageSettings> works everywhere
         services.AddSingleton(Options.Create(settings));
 
         // Bind EncryptionSettings
         var encryptionSettings = EncryptionSettings.BindFromConfiguration(configuration);
         services.AddSingleton(Options.Create(encryptionSettings));
+
+        // Bind IndexingSettings
+        var indexingSettings = IndexingSettings.BindFromConfiguration(configuration);
+        services.AddSingleton(Options.Create(indexingSettings));
 
         // Register the concrete storage provider
         switch (settings.Provider)
@@ -67,34 +68,38 @@ public static class InfrastructureServiceRegistration
         {
             services.AddSingleton<IStorageProvider>(sp => ResolveInnerProvider(sp, settings.Provider));
         }
-        
-        var connectionString = configuration.GetConnectionString("DefaultConnection");        
-        //var connectionString = configuration["STORAGE_DB_CONNECTION"];
-        if (string.IsNullOrWhiteSpace(connectionString))
-            throw new InvalidOperationException("Database connection string 'STORAGE_DB_CONNECTION' is not configured.");
 
-        services.AddDbContext<ApplicationDbContext>((sp, options) =>
+        // Register ApplicationDbContext (EF Core — for general DB needs)
+        //var connectionString = configuration.GetConnectionString("DefaultConnection");
+        //if (string.IsNullOrWhiteSpace(connectionString))
+        //    throw new InvalidOperationException("Database connection string 'DefaultConnection' is not configured.");
+
+        //services.AddDbContext<ApplicationDbContext>((sp, options) =>
+        //{
+        //    switch (databaseProvider.ToLower())
+        //    {
+        //        case "sqlserver":
+        //            //options.UseSqlServer(connectionString);
+        //            break;
+
+        //        case "postgresql":
+        //            options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention();
+        //            break;
+
+        //        case "sqlite":
+        //            //options.UseSqlite(connectionString);
+        //            break;
+
+        //        default:
+        //            throw new ArgumentException($"Unsupported database provider: {databaseProvider}");
+        //    }
+        //});
+
+        // Register document indexing — Elasticsearch
+        if (indexingSettings.Enabled)
         {
-            switch (databaseProvider.ToLower())
-            {
-                case "sqlserver":
-                    //options.UseSqlServer(connectionString);
-                    break;
-
-                case "postgresql":
-                    options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention();
-                    break;
-
-                case "sqlite":
-                    //options.UseSqlite(connectionString);                     
-                    break;
-
-                default:
-                    throw new ArgumentException($"Unsupported database provider: {databaseProvider}");
-            }
-        });
-
-        services.AddScoped<IDocumentIndexRepository, DocumentIndexRepository>();
+            services.AddSingleton<IDocumentIndexRepository, ElasticDocumentIndexRepository>();
+        }
 
         return services;
     }

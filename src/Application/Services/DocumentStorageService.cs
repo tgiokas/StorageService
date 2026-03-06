@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using Storage.Application.Dtos;
 using Storage.Application.Errors;
@@ -6,6 +7,7 @@ using Storage.Application.Interfaces;
 using Storage.Domain.Entities;
 using Storage.Domain.Interfaces;
 using Storage.Domain.ValueObjects;
+using Storage.Application.Configuration;
 
 namespace Storage.Application.Services;
 
@@ -13,20 +15,25 @@ public class DocumentStorageService : IDocumentStorageService
 {
     private readonly IStorageProvider _storageProvider;
     private readonly IDocumentIndexRepository? _indexRepository;
+    private readonly IndexingSettings _indexingSettings;
     private readonly IErrorCatalog _errors;
     private readonly ILogger<DocumentStorageService> _logger;
 
     public DocumentStorageService(
         IStorageProvider storageProvider,
+        IOptions<IndexingSettings> indexingSettings,
         IErrorCatalog errors,
         ILogger<DocumentStorageService> logger,
         IDocumentIndexRepository? indexRepository = null)
     {
         _storageProvider = storageProvider;
+        _indexingSettings = indexingSettings.Value;
         _errors = errors;
         _logger = logger;
         _indexRepository = indexRepository;
     }
+
+    private bool IsIndexingEnabled => _indexingSettings.Enabled && _indexRepository != null;
 
     public async Task<Result<StorageObjectDto>> UploadAsync(DocumentUploadDto request, CancellationToken ct = default)
     {
@@ -52,8 +59,7 @@ public class DocumentStorageService : IDocumentStorageService
                 request.Metadata,
                 ct);
 
-            // Index the document if indexing is enabled
-            if (_indexRepository != null)
+            if (IsIndexingEnabled)
             {
                 await IndexDocumentAsync(result, request, ct);
             }
@@ -118,12 +124,11 @@ public class DocumentStorageService : IDocumentStorageService
 
             await _storageProvider.DeleteAsync(bucket, key, ct);
 
-            // Remove from index if indexing is enabled
-            if (_indexRepository != null)
+            if (IsIndexingEnabled)
             {
                 try
                 {
-                    await _indexRepository.DeleteByBucketAndKeyAsync(bucket, key, ct);
+                    await _indexRepository!.DeleteByBucketAndKeyAsync(bucket, key, ct);
                     _logger.LogInformation("Removed index entry for {Bucket}/{Key}", bucket, key);
                 }
                 catch (Exception indexEx)
@@ -248,7 +253,6 @@ public class DocumentStorageService : IDocumentStorageService
     {
         try
         {
-            // Check if already indexed (re-upload / overwrite scenario)
             var existing = await _indexRepository!.GetByBucketAndKeyAsync(result.Bucket, result.Key, ct);
 
             if (existing != null)
@@ -258,6 +262,14 @@ public class DocumentStorageService : IDocumentStorageService
                 existing.ETag = result.ETag;
                 existing.IsEncrypted = result.Metadata.ContainsKey("x-encrypted");
                 existing.LastModified = DateTime.UtcNow;
+
+                // Merge new tags into existing (caller can override)
+                if (request.Tags != null)
+                {
+                    foreach (var tag in request.Tags)
+                        existing.Tags[tag.Key] = tag.Value;
+                }
+
                 await _indexRepository.UpdateAsync(existing, ct);
                 _logger.LogInformation("Updated index entry for {Bucket}/{Key}", result.Bucket, result.Key);
             }
@@ -274,8 +286,7 @@ public class DocumentStorageService : IDocumentStorageService
                     ETag = result.ETag,
                     IsEncrypted = result.Metadata.ContainsKey("x-encrypted"),
                     UploadedAt = DateTime.UtcNow,
-                    Tags = new Dictionary<string, string>(),
-                    CustomMetadata = request.Metadata ?? new Dictionary<string, string>()
+                    Tags = request.Tags ?? new Dictionary<string, string>()
                 };
 
                 await _indexRepository.AddAsync(indexEntry, ct);
@@ -284,7 +295,6 @@ public class DocumentStorageService : IDocumentStorageService
         }
         catch (Exception ex)
         {
-            // Indexing failure should NOT fail the upload — log warning and continue
             _logger.LogWarning(ex, "Failed to index document {Bucket}/{Key}. Upload succeeded.", result.Bucket, result.Key);
         }
     }

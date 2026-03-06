@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 
 using Storage.Domain.Interfaces;
 using Storage.Domain.ValueObjects;
-using Storage.Infrastructure.Configuration;
+using Storage.Application.Configuration;
 
 namespace Storage.Infrastructure.Providers.AzureBlob;
 

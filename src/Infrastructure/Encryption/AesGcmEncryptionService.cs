@@ -4,14 +4,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Storage.Domain.Interfaces;
-using Storage.Infrastructure.Configuration;
+using Storage.Application.Configuration;
 
 namespace Storage.Infrastructure.Encryption;
 
 /// AES-256-GCM encryption service.
-/// 
 /// Encrypted format: [12-byte nonce][ciphertext][16-byte authentication tag]
-/// 
 /// - Nonce is randomly generated per encryption operation (never reused).
 /// - Authentication tag ensures integrity and authenticity.
 /// - The master key is loaded once from configuration at startup.
