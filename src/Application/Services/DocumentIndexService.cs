@@ -107,7 +107,7 @@ public class DocumentIndexService : IDocumentIndexService
                 return _errors.Fail<DocumentIndexDto>(ErrorCodes.STORAGE.IndexEntryNotFound);
 
             doc.Tags = tags;
-            doc.LastModified = DateTime.UtcNow;
+            doc.ModifiedAt = DateTime.UtcNow;
             await _repository.UpdateAsync(doc, ct);
 
             _logger.LogInformation("Updated tags for index entry {Id}", id);
@@ -132,7 +132,7 @@ public class DocumentIndexService : IDocumentIndexService
         IsEncrypted = doc.IsEncrypted,
         UploadedBy = doc.UploadedBy,
         UploadedAt = doc.UploadedAt,
-        LastModified = doc.LastModified,
+        ModifiedAt = doc.ModifiedAt,
         Tags = doc.Tags
     };
 }

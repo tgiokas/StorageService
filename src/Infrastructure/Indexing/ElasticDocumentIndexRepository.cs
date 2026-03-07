@@ -297,7 +297,7 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
                         .Boolean(b => b.IsEncrypted)
                         .Keyword(k => k.UploadedBy)
                         .Date(d => d.UploadedAt)
-                        .Date(d => d.LastModified)
+                        .Date(d => d.ModifiedAt)
                         .Object(o => o.Tags)                        
                     )
                 ),

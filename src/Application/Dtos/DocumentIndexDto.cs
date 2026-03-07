@@ -12,6 +12,6 @@ public class DocumentIndexDto
     public bool IsEncrypted { get; set; }
     public string? UploadedBy { get; set; }
     public DateTime UploadedAt { get; set; }
-    public DateTime? LastModified { get; set; }
+    public DateTime? ModifiedAt { get; set; }
     public Dictionary<string, string> Tags { get; set; } = new();
 }

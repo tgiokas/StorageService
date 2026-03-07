@@ -56,7 +56,7 @@ public class DocumentStorageService : IDocumentStorageService
                 request.Key,
                 request.Content,
                 request.ContentType,
-                request.Metadata,
+                null,
                 ct);
 
             if (IsIndexingEnabled)
@@ -261,7 +261,7 @@ public class DocumentStorageService : IDocumentStorageService
                 existing.ContentType = result.ContentType;
                 existing.ETag = result.ETag;
                 existing.IsEncrypted = result.Metadata.ContainsKey("x-encrypted");
-                existing.LastModified = DateTime.UtcNow;
+                existing.ModifiedAt = DateTime.UtcNow;
 
                 // Merge new tags into existing (caller can override)
                 if (request.Tags != null)

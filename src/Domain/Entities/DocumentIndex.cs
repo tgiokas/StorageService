@@ -12,8 +12,6 @@ public class DocumentIndex
     public bool IsEncrypted { get; set; }
     public string? UploadedBy { get; set; }
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
-    public DateTime? LastModified { get; set; }
-
-    /// Key-value tags for categorization, filtering, and any custom metadata.
+    public DateTime? ModifiedAt { get; set; }
     public Dictionary<string, string> Tags { get; set; } = new();
 }
