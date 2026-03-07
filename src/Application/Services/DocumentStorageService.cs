@@ -13,11 +13,11 @@ namespace Storage.Application.Services;
 
 public class DocumentStorageService : IDocumentStorageService
 {
-    private readonly IStorageProvider _storageProvider;
-    private readonly IDocumentIndexRepository? _indexRepository;
+    private readonly IStorageProvider _storageProvider;    
     private readonly IndexingSettings _indexingSettings;
     private readonly IErrorCatalog _errors;
     private readonly ILogger<DocumentStorageService> _logger;
+    private readonly IDocumentIndexRepository? _indexRepository;
 
     public DocumentStorageService(
         IStorageProvider storageProvider,
@@ -246,8 +246,6 @@ public class DocumentStorageService : IDocumentStorageService
             return _errors.Fail<bool>(ErrorCodes.STORAGE.BucketCreationFailed);
         }
     }
-
-    // --- Private helpers ---
 
     private async Task IndexDocumentAsync(StorageObjectInfo result, DocumentUploadDto request, CancellationToken ct)
     {

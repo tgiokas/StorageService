@@ -162,7 +162,7 @@ public class DocumentsController : ControllerBase
     }
    
     /// Ensure a bucket exists (create if it doesn't).    
-    [HttpPut("buckets/{bucket}")]
+    [HttpGet("buckets/{bucket}")]
     public async Task<IActionResult> EnsureBucketExists(string bucket, CancellationToken ct = default)
     {
         var result = await _storageService.EnsureBucketExistsAsync(bucket, ct);
