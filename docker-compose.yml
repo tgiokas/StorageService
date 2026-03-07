@@ -1,27 +1,27 @@
 services:
 
-  storage-db:
-    image: postgres:18.1
-    container_name: storage-db
-    env_file:
-      - .env
-    environment:
-      POSTGRES_USER: ${STORAGE_DB_POSTGRES_USER}
-      POSTGRES_PASSWORD: ${STORAGE_DB_POSTGRES_PASSWORD}
-      POSTGRES_DB: ${STORAGE_DB_POSTGRES_DB}
-    #dev only
-    ports:
-      - "5436:5432"
-    volumes:
-      - storage-db-data:/var/lib/postgresql/data
-    networks:
-      - archium-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${STORAGE_DB_POSTGRES_USER:-postgres} -d ${STORAGE_DB_POSTGRES_DB:-postgres}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s    
+  # storage-db:
+  #   image: postgres:18.1
+  #   container_name: storage-db
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     POSTGRES_USER: ${STORAGE_DB_POSTGRES_USER}
+  #     POSTGRES_PASSWORD: ${STORAGE_DB_POSTGRES_PASSWORD}
+  #     POSTGRES_DB: ${STORAGE_DB_POSTGRES_DB}
+  #   #dev only
+  #   ports:
+  #     - "5436:5432"
+  #   volumes:
+  #     - storage-db-data:/var/lib/postgresql/data
+  #   networks:
+  #     - archium-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${STORAGE_DB_POSTGRES_USER:-postgres} -d ${STORAGE_DB_POSTGRES_DB:-postgres}"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s    
     
   minio:
     image: minio/minio:latest
