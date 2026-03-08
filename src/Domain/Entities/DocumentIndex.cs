@@ -8,7 +8,6 @@ public class DocumentIndex
     public string FileName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;
     public long Size { get; set; }
-    public string? ETag { get; set; }
     public bool IsEncrypted { get; set; }
     public string? UploadedBy { get; set; }
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;

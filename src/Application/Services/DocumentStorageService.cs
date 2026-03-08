@@ -257,7 +257,6 @@ public class DocumentStorageService : IDocumentStorageService
             {
                 existing.Size = result.Size;
                 existing.ContentType = result.ContentType;
-                existing.ETag = result.ETag;
                 existing.IsEncrypted = result.Metadata.ContainsKey("x-encrypted");
                 existing.ModifiedAt = DateTime.UtcNow;
 
@@ -280,8 +279,7 @@ public class DocumentStorageService : IDocumentStorageService
                     Key = result.Key,
                     FileName = Path.GetFileName(request.Key),
                     ContentType = result.ContentType,
-                    Size = result.Size,
-                    ETag = result.ETag,
+                    Size = result.Size,                   
                     IsEncrypted = result.Metadata.ContainsKey("x-encrypted"),
                     UploadedAt = DateTime.UtcNow,
                     Tags = request.Tags ?? new Dictionary<string, string>()
