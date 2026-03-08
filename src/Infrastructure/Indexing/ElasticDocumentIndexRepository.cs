@@ -17,7 +17,9 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
     private readonly ElasticsearchClient _elasticSearchClient;
     private readonly string _indexName;
     private readonly ILogger<ElasticDocumentIndexRepository> _logger;
-    private bool _indexEnsured;
+
+    private bool _indexEnsured = false;
+    private readonly SemaphoreSlim _indexLock = new(1, 1);
 
     public ElasticDocumentIndexRepository(
         IOptions<IndexingSettings> options,
@@ -281,38 +283,44 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
     {
         if (_indexEnsured) return;
 
-        var existsResponse = await _elasticSearchClient.Indices.ExistsAsync(_indexName, ct);
-
-        if (!existsResponse.Exists)
+        await _indexLock.WaitAsync(ct);
+        try
         {
-            var createResponse = await _elasticSearchClient.Indices.CreateAsync(_indexName, c => c
-                .Mappings(m => m
-                    .Properties<DocumentIndex>(p => p
-                        .Keyword(k => k.Bucket)
-                        .Keyword(k => k.Key)
-                        .Text(t => t.FileName)
-                        .Keyword(k => k.ContentType)
-                        .LongNumber(l => l.Size)                        
-                        .Boolean(b => b.IsEncrypted)
-                        .Keyword(k => k.UploadedBy)
-                        .Date(d => d.UploadedAt)
-                        .Date(d => d.ModifiedAt)
-                        .Object(o => o.Tags)                        
-                    )
-                ),
-                ct);
+            if (_indexEnsured) return; // double-check: another thread may have just created it
 
-            if (createResponse.IsValidResponse)
+            var existsResponse = await _elasticSearchClient.Indices.ExistsAsync(_indexName, ct);
+
+            if (!existsResponse.Exists)
             {
-                _logger.LogInformation("Created Elasticsearch index: {Index}", _indexName);
+                var createResponse = await _elasticSearchClient.Indices.CreateAsync(_indexName, c => c
+                    .Mappings(m => m
+                        .Properties<DocumentIndex>(p => p
+                            .Keyword(k => k.Bucket)
+                            .Keyword(k => k.Key)
+                            .Keyword(k => k.FileName)
+                            .Keyword(k => k.ContentType)
+                            .LongNumber(l => l.Size)
+                            .Boolean(b => b.IsEncrypted)
+                            .Keyword(k => k.UploadedBy)
+                            .Date(d => d.UploadedAt)
+                            .Date(d => d.ModifiedAt)
+                            .Object(o => o.Tags)
+                        )
+                    ),
+                    ct);
+
+                if (createResponse.IsValidResponse)
+                    _logger.LogInformation("Created Elasticsearch index: {Index}", _indexName);
+                else
+                    _logger.LogWarning("Failed to create Elasticsearch index {Index}: {Reason}",
+                        _indexName, createResponse.DebugInformation);
             }
-            else
-            {
-                _logger.LogWarning("Failed to create Elasticsearch index {Index}: {Reason}",
-                    _indexName, createResponse.DebugInformation);
-            }
+
+            _indexEnsured = true;
         }
-
-        _indexEnsured = true;
+        finally
+        {
+            _indexLock.Release();
+        }
     }
 }

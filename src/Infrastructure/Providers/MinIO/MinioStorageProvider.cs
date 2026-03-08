@@ -46,7 +46,7 @@ public class MinioStorageProvider : IStorageProvider
             .WithBucket(bucket)
             .WithObject(key)
             .WithStreamData(content)
-            .WithObjectSize(content.Length)
+            .WithObjectSize(content.CanSeek ? content.Length : -1)
             .WithContentType(contentType);
 
         if (metadata != null && metadata.Count > 0)
