@@ -27,5 +27,6 @@ public static class ErrorCodes
         public const string IndexQueryFailed = "STR-020";
         public const string IndexUpdateFailed = "STR-021";
         public const string IndexDeleteFailed = "STR-022";
+        public const string ObjectAlreadyExists = "STR-023";
     }
 }

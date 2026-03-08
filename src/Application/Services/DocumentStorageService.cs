@@ -1,19 +1,19 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Storage.Application.Configuration;
 using Storage.Application.Dtos;
 using Storage.Application.Errors;
 using Storage.Application.Interfaces;
 using Storage.Domain.Entities;
 using Storage.Domain.Interfaces;
 using Storage.Domain.ValueObjects;
-using Storage.Application.Configuration;
 
 namespace Storage.Application.Services;
 
 public class DocumentStorageService : IDocumentStorageService
 {
-    private readonly IStorageProvider _storageProvider;    
+    private readonly IStorageProvider _storageProvider;
     private readonly IndexingSettings _indexingSettings;
     private readonly IErrorCatalog _errors;
     private readonly ILogger<DocumentStorageService> _logger;
@@ -33,7 +33,7 @@ public class DocumentStorageService : IDocumentStorageService
         _indexRepository = indexRepository;
     }
 
-    private bool IsIndexingEnabled => _indexingSettings.Enabled && _indexRepository != null;
+    private bool IsIndexingEnabled => _indexingSettings.Enabled && _indexRepository is not null;
 
     public async Task<Result<StorageObjectDto>> UploadAsync(DocumentUploadDto request, CancellationToken ct = default)
     {
@@ -43,7 +43,7 @@ public class DocumentStorageService : IDocumentStorageService
         if (string.IsNullOrWhiteSpace(request.Key))
             return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.InvalidKey);
 
-        if (request.Content == null || request.Content.Length == 0)
+        if (request.Content is null || request.Content.Length == 0)
             return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.ContentEmpty);
 
         if (string.IsNullOrWhiteSpace(request.ContentType))
@@ -51,20 +51,49 @@ public class DocumentStorageService : IDocumentStorageService
 
         try
         {
-            var result = await _storageProvider.UploadAsync(
+            // Business rule:
+            // Bucket + Key is the identity, and duplicates are rejected.
+            var exists = await _storageProvider.ExistsAsync(request.Bucket, request.Key, ct);
+            if (exists)
+            {
+                _logger.LogWarning("Rejected duplicate upload for {Bucket}/{Key}", request.Bucket, request.Key);
+                return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.ObjectAlreadyExists);
+            }
+
+            var storageObject = await _storageProvider.UploadAsync(
                 request.Bucket,
                 request.Key,
                 request.Content,
                 request.ContentType,
                 null,
-                ct);
+                ct);            
 
-            if (IsIndexingEnabled)
+            try
             {
-                await IndexDocumentAsync(result, request, ct);
+                if (IsIndexingEnabled)
+                {
+                    await CreateIndexEntryAsync(request, storageObject, ct);
+                }
+            }
+            catch (Exception indexEx)
+            {
+                _logger.LogError(indexEx, "Indexing failed after upload for {Bucket}/{Key}. Rolling back object storage.", request.Bucket, request.Key);
+
+                try
+                {
+                    await _storageProvider.DeleteAsync(request.Bucket, request.Key, ct);
+                }
+                catch (Exception rollbackEx)
+                {
+                    _logger.LogError(rollbackEx, "Rollback delete also failed for {Bucket}/{Key}", request.Bucket, request.Key);
+                    return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.UploadFailed);
+                }
+
+                return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.UploadFailed);
             }
 
-            var dto = MapToDto(result);
+            var dto = MapToDto(storageObject);
+            
             return Result<StorageObjectDto>.Ok(dto, "Document uploaded successfully.");
         }
         catch (Exception ex)
@@ -133,7 +162,7 @@ public class DocumentStorageService : IDocumentStorageService
                 }
                 catch (Exception indexEx)
                 {
-                    _logger.LogWarning(indexEx, "Failed to remove index entry for {Bucket}/{Key}. Storage deletion succeeded.", bucket, key);
+                    _logger.LogWarning(indexEx, "Object deletion succeeded but index deletion failed for {Bucket}/{Key}", bucket, key);
                 }
             }
 
@@ -162,6 +191,7 @@ public class DocumentStorageService : IDocumentStorageService
 
             var metadata = await _storageProvider.GetMetadataAsync(bucket, key, ct);
             var dto = MapToDto(metadata);
+
             return Result<StorageObjectDto>.Ok(dto);
         }
         catch (Exception ex)
@@ -200,6 +230,7 @@ public class DocumentStorageService : IDocumentStorageService
         {
             var objects = await _storageProvider.ListAsync(bucket, prefix, ct);
             var dtos = objects.Select(MapToDto).ToList();
+
             return Result<List<StorageObjectDto>>.Ok(dtos);
         }
         catch (Exception ex)
@@ -221,6 +252,7 @@ public class DocumentStorageService : IDocumentStorageService
         {
             var expiry = TimeSpan.FromMinutes(request.ExpiryMinutes);
             var url = await _storageProvider.GetPresignedUrlAsync(request.Bucket, request.Key, expiry, ct);
+
             return Result<string>.Ok(url);
         }
         catch (Exception ex)
@@ -247,52 +279,25 @@ public class DocumentStorageService : IDocumentStorageService
         }
     }
 
-    private async Task IndexDocumentAsync(StorageObjectInfo result, DocumentUploadDto request, CancellationToken ct)
+    private async Task CreateIndexEntryAsync(DocumentUploadDto request, StorageObjectInfo metadata, CancellationToken ct)
     {
-        try
+        var indexEntry = new DocumentIndex
         {
-            var existing = await _indexRepository!.GetByBucketAndKeyAsync(result.Bucket, result.Key, ct);
+            Id = Guid.NewGuid(),
+            Bucket = metadata.Bucket,
+            Key = metadata.Key,
+            FileName = Path.GetFileName(request.Key),
+            ContentType = metadata.ContentType,
+            Size = metadata.Size,
+            IsEncrypted = metadata.Metadata.ContainsKey("x-encrypted"),
+            //UploadedBy = request.UploadedBy,
+            UploadedAt = DateTime.UtcNow,
+            Tags = request.Tags ?? new Dictionary<string, string>()
+        };
 
-            if (existing != null)
-            {
-                existing.Size = result.Size;
-                existing.ContentType = result.ContentType;
-                existing.IsEncrypted = result.Metadata.ContainsKey("x-encrypted");
-                existing.ModifiedAt = DateTime.UtcNow;
+        await _indexRepository!.AddAsync(indexEntry, ct);
 
-                // Merge new tags into existing (caller can override)
-                if (request.Tags != null)
-                {
-                    foreach (var tag in request.Tags)
-                        existing.Tags[tag.Key] = tag.Value;
-                }
-
-                await _indexRepository.UpdateAsync(existing, ct);
-                _logger.LogInformation("Updated index entry for {Bucket}/{Key}", result.Bucket, result.Key);
-            }
-            else
-            {
-                var indexEntry = new DocumentIndex
-                {
-                    Id = Guid.NewGuid(),
-                    Bucket = result.Bucket,
-                    Key = result.Key,
-                    FileName = Path.GetFileName(request.Key),
-                    ContentType = result.ContentType,
-                    Size = result.Size,                   
-                    IsEncrypted = result.Metadata.ContainsKey("x-encrypted"),
-                    UploadedAt = DateTime.UtcNow,
-                    Tags = request.Tags ?? new Dictionary<string, string>()
-                };
-
-                await _indexRepository.AddAsync(indexEntry, ct);
-                _logger.LogInformation("Created index entry for {Bucket}/{Key}", result.Bucket, result.Key);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to index document {Bucket}/{Key}. Upload succeeded.", result.Bucket, result.Key);
-        }
+        _logger.LogInformation("Created index entry for {Bucket}/{Key}", metadata.Bucket, metadata.Key);
     }
 
     private static StorageObjectDto MapToDto(StorageObjectInfo info) => new()
