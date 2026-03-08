@@ -60,12 +60,20 @@ public class DocumentStorageService : IDocumentStorageService
                 return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.ObjectAlreadyExists);
             }
 
+            // Prefix tag keys so they don't collide with system metadata (e.g. x-encrypted)
+            Dictionary<string, string>? objectMetadata = null;
+            if (request.Tags != null && request.Tags.Count > 0)
+            {
+                objectMetadata = request.Tags
+                    .ToDictionary(kvp => $"x-tag-{kvp.Key}", kvp => kvp.Value);
+            }
+
             var storageObject = await _storageProvider.UploadAsync(
                 request.Bucket,
                 request.Key,
                 request.Content,
                 request.ContentType,
-                null,
+                objectMetadata,
                 ct);            
 
             try
@@ -113,10 +121,6 @@ public class DocumentStorageService : IDocumentStorageService
 
         try
         {
-            var exists = await _storageProvider.ExistsAsync(bucket, key, ct);
-            if (!exists)
-                return _errors.Fail<DocumentDownloadDto>(ErrorCodes.STORAGE.ObjectNotFound);
-
             var metadata = await _storageProvider.GetMetadataAsync(bucket, key, ct);
             var stream = await _storageProvider.DownloadAsync(bucket, key, ct);
 
@@ -129,7 +133,7 @@ public class DocumentStorageService : IDocumentStorageService
             };
 
             return Result<DocumentDownloadDto>.Ok(response);
-        }
+        }    
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to download document {Key} from bucket {Bucket}", key, bucket);
@@ -290,7 +294,7 @@ public class DocumentStorageService : IDocumentStorageService
             ContentType = metadata.ContentType,
             Size = metadata.Size,
             IsEncrypted = metadata.Metadata.ContainsKey("x-encrypted"),
-            //UploadedBy = request.UploadedBy,
+            UploadedBy = request.UploadedBy,
             UploadedAt = DateTime.UtcNow,
             Tags = request.Tags ?? new Dictionary<string, string>()
         };

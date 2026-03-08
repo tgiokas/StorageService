@@ -6,11 +6,11 @@ using Storage.Domain.ValueObjects;
 namespace Storage.Infrastructure.Encryption;
 
 /// A Decorator that wraps any IStorageProvider with encryption.
-///
+
 /// On upload: encrypts the stream before passing to the inner provider.
 /// On download: decrypts the stream after receiving from the inner provider.
 /// All other operations pass through unchanged.
-/// 
+
 /// Encrypted objects are tagged with metadata key "x-encrypted" = "true"
 /// so the system knows which objects need decryption on download.
 public class EncryptedStorageProviderDecorator : IStorageProvider
@@ -59,29 +59,25 @@ public class EncryptedStorageProviderDecorator : IStorageProvider
     }
 
     public async Task<Stream> DownloadAsync(
-        string bucket,
-        string key,
+        string bucket, 
+        string key, 
         CancellationToken ct = default)
-    {
-        var encryptedStream = await _inner.DownloadAsync(bucket, key, ct);
-
-        // Check if the object was encrypted by reading metadata
+    {       
         var metadata = await _inner.GetMetadataAsync(bucket, key, ct);
         var isEncrypted = metadata.Metadata.TryGetValue(EncryptedMetadataKey, out var val)
             && val.Equals(EncryptedMetadataValue, StringComparison.OrdinalIgnoreCase);
 
+        var stream = await _inner.DownloadAsync(bucket, key, ct);
+
         if (!isEncrypted)
         {
             _logger.LogDebug("Document {Key} in bucket {Bucket} is not encrypted, returning as-is", key, bucket);
-            return encryptedStream;
+            return stream;
         }
 
         _logger.LogInformation("Decrypting document {Key} after download from bucket {Bucket}", key, bucket);
-
-        return await _encryptionService.DecryptAsync(encryptedStream, ct);
+        return await _encryptionService.DecryptAsync(stream, ct);
     }
-
-    // All other operations pass through to the inner provider unchanged
 
     public Task DeleteAsync(string bucket, string key, CancellationToken ct = default)
         => _inner.DeleteAsync(bucket, key, ct);
