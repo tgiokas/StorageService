@@ -51,7 +51,7 @@ services:
     env_file:
       - .env
     environment:
-      GARAGE_ADMIN_TOKEN: ""
+      GARAGE_ADMIN_TOKEN: "garage-admin-token"
     ports:
       - "3900:3900"   # S3 API
       - "3901:3901"   # Admin API
@@ -67,6 +67,19 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  garage-ui:
+    image: khairul169/garage-admin-ui:latest
+    container_name: garage-ui
+    ports:
+      - "3909:3909"   # Web UI
+    environment:
+      GARAGE_API_URL: http://garage:3901
+      GARAGE_API_TOKEN: garage-admin-token
+    depends_on:
+      - garage
+    networks:
+      - archium-network
 
   storage-api:
     container_name: storage-api
