@@ -22,6 +22,7 @@
     {"code":"STR-019","message":"Document index entry not found"},
     {"code":"STR-020","message":"Failed to query document index"},
     {"code":"STR-021","message":"Failed to update document index entry"},
-    {"code":"STR-022","message":"Failed to delete document index entry"}
+    {"code":"STR-022","message":"Failed to delete document index entry"},
+    {"code":"STR-023","message":"Object Already Exists"}
   ]
 }
