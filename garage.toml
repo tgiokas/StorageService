@@ -11,6 +11,7 @@ replication_factor = 1
 
 # Internal RPC (cluster communication) — single-node
 rpc_bind_addr = "0.0.0.0:3903"
+rpc_secret = "e57d9d4105d33286139ddf836f47484a1eef15922eb4328d150ddd64e1793ef3"
 
 [s3_api]
 s3_region = "garage"
