@@ -26,6 +26,7 @@ public class DocumentsController : ControllerBase
         IFormFile file,
         [FromQuery] string? key = null,
         [FromQuery] string? tags = null,
+        [FromQuery] string? uploadedBy = null,
         CancellationToken ct = default)
     {
         if (file == null || file.Length == 0)
@@ -56,6 +57,7 @@ public class DocumentsController : ControllerBase
             Key = objectKey,
             Content = stream,
             ContentType = file.ContentType,
+            UploadedBy = uploadedBy,
             Tags = parsedTags
         };
 

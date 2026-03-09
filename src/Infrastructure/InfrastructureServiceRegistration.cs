@@ -12,12 +12,14 @@ using Storage.Infrastructure.Indexing;
 using Storage.Infrastructure.Providers.MinIO;
 using Storage.Infrastructure.Providers.SeaweedFS;
 using Storage.Infrastructure.Providers.AzureBlob;
+using Storage.Application.Errors;
+using Storage.Application.Interfaces;
 
 namespace Storage.Infrastructure;
 
 public static class InfrastructureServiceRegistration
 {
-    public static IServiceCollection AddStorageInfrastructure(this IServiceCollection services, IConfiguration configuration, string databaseProvider)
+    public static IServiceCollection AddStorageInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         // Bind StorageSettings from env variables
         var settings = StorageSettings.BindFromConfiguration(configuration);
@@ -68,6 +70,11 @@ public static class InfrastructureServiceRegistration
         {
             services.AddSingleton<IStorageProvider>(sp => ResolveInnerProvider(sp, settings.Provider));
         }
+
+        //// Error catalog
+        //var errorsPath = configuration["ErrorCatalogPath"] ?? "errors.json";
+        //var errorCatalog = ErrorCatalog.LoadFromFile(errorsPath);
+        //services.AddSingleton<IErrorCatalog>(errorCatalog);
 
         // Register ApplicationDbContext (EF Core — for general DB needs)
         //var connectionString = configuration.GetConnectionString("DefaultConnection");

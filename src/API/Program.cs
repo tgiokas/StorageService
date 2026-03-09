@@ -26,8 +26,8 @@ builder.Host.UseSerilog();
 // Add Application services
 builder.Services.AddApplicationServices();
 
-// Add Storage Infrastructure (provider selection + encryption + indexing + error catalog)
-builder.Services.AddStorageInfrastructure(builder.Configuration, "postgresql");
+// Add Storage Infrastructure (provider selection + encryption + indexing)
+builder.Services.AddStorageInfrastructure(builder.Configuration);
 
 // Add Error Catalog Path
 var path = Path.Combine(builder.Environment.ContentRootPath, "errors.json");
