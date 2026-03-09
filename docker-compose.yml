@@ -45,6 +45,29 @@ services:
       timeout: 5s
       retries: 5
 
+  garage:
+    image: dxflrs/garage:v1.0.1
+    container_name: garage
+    env_file:
+      - .env
+    environment:
+      GARAGE_ADMIN_TOKEN: ""
+    ports:
+      - "3900:3900"   # S3 API
+      - "3901:3901"   # Admin API
+    volumes:
+      - ./volumes/garage_data:/var/lib/garage/data
+      - ./volumes/garage_meta:/var/lib/garage/meta
+      - ./garage.toml:/etc/garage.toml:ro
+    networks:
+      - archium-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3900/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   storage-api:
     container_name: storage-api
     build:
@@ -62,6 +85,11 @@ services:
       SEAWEEDFS_MASTER_URL: ${SEAWEEDFS_MASTER_URL}
       SEAWEEDFS_FILER_URL: ${SEAWEEDFS_FILER_URL}
       AZURE_BLOB_CONNECTION_STRING: ${AZURE_BLOB_CONNECTION_STRING}
+      GARAGE_ENDPOINT: ${GARAGE_ENDPOINT}
+      GARAGE_ACCESS_KEY: ${GARAGE_ACCESS_KEY}
+      GARAGE_SECRET_KEY: ${GARAGE_SECRET_KEY}
+      GARAGE_USE_SSL: ${GARAGE_USE_SSL}
+      GARAGE_REGION: ${GARAGE_REGION}
     depends_on:
       minio:
         condition: service_healthy
