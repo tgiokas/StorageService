@@ -98,8 +98,8 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
         if (!response.IsValidResponse)
         {
-            _logger.LogWarning("Elasticsearch search failed: {Reason}", response.DebugInformation);
-            return new List<DocumentIndex>();
+            _logger.LogError("Elasticsearch search failed: {Reason}", response.DebugInformation);
+            throw new InvalidOperationException($"Elasticsearch search failed: {response.DebugInformation}");
         }
 
         var results = new List<DocumentIndex>();
@@ -124,8 +124,8 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
         if (!response.IsValidResponse)
         {
-            _logger.LogWarning("Elasticsearch count failed: {Reason}", response.DebugInformation);
-            return 0;
+            _logger.LogError("Elasticsearch count failed: {Reason}", response.DebugInformation);
+            throw new InvalidOperationException($"Elasticsearch count failed: {response.DebugInformation}");
         }
 
         return (int)response.Count;
@@ -281,7 +281,7 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
     private async Task EnsureIndexExistsAsync(CancellationToken ct)
     {
-        if (_indexEnsured) return;
+        if (_indexEnsured) return; // fast path — no lock needed after first successful creation
 
         await _indexLock.WaitAsync(ct);
         try
@@ -310,13 +310,19 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
                     ct);
 
                 if (createResponse.IsValidResponse)
+                {
                     _logger.LogInformation("Created Elasticsearch index: {Index}", _indexName);
+                }
                 else
-                    _logger.LogWarning("Failed to create Elasticsearch index {Index}: {Reason}",
+                {
+                    _logger.LogError("Failed to create Elasticsearch index {Index}: {Reason}",
                         _indexName, createResponse.DebugInformation);
+                    throw new InvalidOperationException(
+                        $"Failed to create Elasticsearch index '{_indexName}': {createResponse.DebugInformation}");
+                }
             }
 
-            _indexEnsured = true;
+            _indexEnsured = true; // only reached if index exists or was successfully created
         }
         finally
         {

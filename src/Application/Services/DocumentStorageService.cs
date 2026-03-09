@@ -6,6 +6,7 @@ using Storage.Application.Dtos;
 using Storage.Application.Errors;
 using Storage.Application.Interfaces;
 using Storage.Domain.Entities;
+using Storage.Domain.Exceptions;
 using Storage.Domain.Interfaces;
 using Storage.Domain.ValueObjects;
 
@@ -51,8 +52,7 @@ public class DocumentStorageService : IDocumentStorageService
 
         try
         {
-            // Business rule:
-            // Bucket + Key is the identity, and duplicates are rejected.
+            // Business rule: Bucket + Key is the identity, duplicates are rejected
             var exists = await _storageProvider.ExistsAsync(request.Bucket, request.Key, ct);
             if (exists)
             {
@@ -74,7 +74,7 @@ public class DocumentStorageService : IDocumentStorageService
                 request.Content,
                 request.ContentType,
                 objectMetadata,
-                ct);            
+                ct);
 
             try
             {
@@ -94,14 +94,13 @@ public class DocumentStorageService : IDocumentStorageService
                 catch (Exception rollbackEx)
                 {
                     _logger.LogError(rollbackEx, "Rollback delete also failed for {Bucket}/{Key}", request.Bucket, request.Key);
-                    return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.UploadFailed);
                 }
 
                 return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.UploadFailed);
             }
 
             var dto = MapToDto(storageObject);
-            
+
             return Result<StorageObjectDto>.Ok(dto, "Document uploaded successfully.");
         }
         catch (Exception ex)
@@ -133,7 +132,16 @@ public class DocumentStorageService : IDocumentStorageService
             };
 
             return Result<DocumentDownloadDto>.Ok(response);
-        }    
+        }
+        catch (StorageObjectNotFoundException)
+        {
+            return _errors.Fail<DocumentDownloadDto>(ErrorCodes.STORAGE.ObjectNotFound);
+        }
+        catch (StorageDecryptionException ex)
+        {
+            _logger.LogError(ex, "Decryption failed for document {Key} in bucket {Bucket}", key, bucket);
+            return _errors.Fail<DocumentDownloadDto>(ErrorCodes.STORAGE.DecryptionFailed);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to download document {Key} from bucket {Bucket}", key, bucket);
@@ -313,5 +321,11 @@ public class DocumentStorageService : IDocumentStorageService
         ETag = info.ETag,
         LastModified = info.LastModified,
         Metadata = info.Metadata
+            .Where(kvp => !kvp.Key.Equals("x-encrypted", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(
+                kvp => kvp.Key.StartsWith("x-tag-", StringComparison.OrdinalIgnoreCase)
+                    ? kvp.Key[6..]
+                    : kvp.Key,
+                kvp => kvp.Value)
     };
 }

@@ -6,11 +6,11 @@ using Storage.Domain.ValueObjects;
 namespace Storage.Infrastructure.Encryption;
 
 /// A Decorator that wraps any IStorageProvider with encryption.
-
+///
 /// On upload: encrypts the stream before passing to the inner provider.
 /// On download: decrypts the stream after receiving from the inner provider.
 /// All other operations pass through unchanged.
-
+///
 /// Encrypted objects are tagged with metadata key "x-encrypted" = "true"
 /// so the system knows which objects need decryption on download.
 public class EncryptedStorageProviderDecorator : IStorageProvider
@@ -40,7 +40,9 @@ public class EncryptedStorageProviderDecorator : IStorageProvider
         Dictionary<string, string>? metadata = null,
         CancellationToken ct = default)
     {
-        // Encrypt the content
+        // Capture original size before encrypting 
+        var originalSize = content.CanSeek ? content.Length : -1;
+
         var encryptedStream = await _encryptionService.EncryptAsync(content, ct);
 
         // Tag metadata so we know this object is encrypted
@@ -51,18 +53,19 @@ public class EncryptedStorageProviderDecorator : IStorageProvider
 
         var result = await _inner.UploadAsync(bucket, key, encryptedStream, contentType, metadata, ct);
 
-        // Report the original (unencrypted) size in the returned info
-        // The stored size is larger due to nonce + tag overhead
-        result.Metadata = metadata;
+        // Override with original file size so callers and the index see the real file size, not the encrypted size
+        if (originalSize >= 0)
+            result.Size = originalSize;
 
         return result;
     }
 
     public async Task<Stream> DownloadAsync(
-        string bucket, 
-        string key, 
+        string bucket,
+        string key,
         CancellationToken ct = default)
-    {       
+    {
+        // Fetch metadata first to know whether decryption is needed        
         var metadata = await _inner.GetMetadataAsync(bucket, key, ct);
         var isEncrypted = metadata.Metadata.TryGetValue(EncryptedMetadataKey, out var val)
             && val.Equals(EncryptedMetadataValue, StringComparison.OrdinalIgnoreCase);
@@ -76,8 +79,11 @@ public class EncryptedStorageProviderDecorator : IStorageProvider
         }
 
         _logger.LogInformation("Decrypting document {Key} after download from bucket {Bucket}", key, bucket);
+
         return await _encryptionService.DecryptAsync(stream, ct);
     }
+
+    // All other operations pass through to the inner provider unchanged
 
     public Task DeleteAsync(string bucket, string key, CancellationToken ct = default)
         => _inner.DeleteAsync(bucket, key, ct);

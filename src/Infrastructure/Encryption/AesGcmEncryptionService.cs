@@ -2,8 +2,9 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using Storage.Domain.Interfaces;
 using Storage.Application.Configuration;
+using Storage.Domain.Interfaces;
+using Storage.Domain.Exceptions;
 
 namespace Storage.Infrastructure.Encryption;
 
@@ -12,7 +13,6 @@ namespace Storage.Infrastructure.Encryption;
 /// - Nonce is randomly generated per encryption operation (never reused).
 /// - Authentication tag ensures integrity and authenticity.
 /// - The master key is loaded once from configuration at startup.
-
 public class AesGcmEncryptionService : IEncryptionService
 {
     private const int NonceSize = 12;  // AES-GCM standard nonce size
@@ -56,7 +56,7 @@ public class AesGcmEncryptionService : IEncryptionService
         using var aesGcm = new AesGcm(_masterKey, TagSize);
         aesGcm.Encrypt(nonce, plaintextBytes, ciphertext, tag);
 
-        // Assemble output
+        // Assemble output: [nonce][ciphertext][tag]
         var output = new MemoryStream();
         await output.WriteAsync(nonce, ct);
         await output.WriteAsync(ciphertext, ct);
@@ -87,7 +87,17 @@ public class AesGcmEncryptionService : IEncryptionService
         // Decrypt
         var plaintext = new byte[encryptedData.Length];
         using var aesGcm = new AesGcm(_masterKey, TagSize);
-        aesGcm.Decrypt(nonce, encryptedData, tag, plaintext);
+
+        try
+        {
+            aesGcm.Decrypt(nonce, encryptedData, tag, plaintext);
+        }
+        catch (CryptographicException ex)
+        {
+            _logger.LogError(ex, "AES-GCM decryption failed — possible key mismatch or data tampering");
+            throw new StorageDecryptionException(
+                "Decryption failed. The data may be corrupted or the encryption key is incorrect.", ex);
+        }
 
         var output = new MemoryStream(plaintext);
         output.Position = 0;
