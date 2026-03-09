@@ -12,6 +12,7 @@ using Storage.Infrastructure.Indexing;
 using Storage.Infrastructure.Providers.MinIO;
 using Storage.Infrastructure.Providers.SeaweedFS;
 using Storage.Infrastructure.Providers.AzureBlob;
+using Storage.Infrastructure.Providers.Garage;
 using Storage.Application.Errors;
 using Storage.Application.Interfaces;
 
@@ -46,6 +47,10 @@ public static class InfrastructureServiceRegistration
 
             case StorageProviderType.AzureBlob:
                 services.AddSingleton<AzureBlobStorageProvider>();
+                break;
+
+            case StorageProviderType.Garage:
+                services.AddSingleton<GarageStorageProvider>();
                 break;
 
             default:
@@ -118,6 +123,7 @@ public static class InfrastructureServiceRegistration
             StorageProviderType.MinIO => sp.GetRequiredService<MinioStorageProvider>(),
             StorageProviderType.SeaweedFS => sp.GetRequiredService<SeaweedFsStorageProvider>(),
             StorageProviderType.AzureBlob => sp.GetRequiredService<AzureBlobStorageProvider>(),
+            StorageProviderType.Garage => sp.GetRequiredService<GarageStorageProvider>(),
             _ => throw new InvalidOperationException($"Unsupported storage provider: {provider}")
         };
     }

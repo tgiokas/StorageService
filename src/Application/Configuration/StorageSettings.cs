@@ -22,12 +22,25 @@ public class AzureBlobSettings
     public string ConnectionString { get; set; } = string.Empty;
 }
 
+// Garage is an open-source, geo-distributed S3-compatible object store (https://garagehq.deuxfleurs.fr).
+// It exposes an S3-compatible API, so the MinIO SDK is used to communicate with it.
+public class GarageSettings
+{
+    public string Endpoint { get; set; } = string.Empty;
+    public string AccessKey { get; set; } = string.Empty;
+    public string SecretKey { get; set; } = string.Empty;
+    public bool UseSsl { get; set; } = false;
+    // Garage requires an explicit region; any non-empty string is accepted (default: "garage").
+    public string Region { get; set; } = "garage";
+}
+
 public class StorageSettings
 {
     public StorageProviderType Provider { get; set; } = StorageProviderType.MinIO;
     public MinioSettings MinIO { get; set; } = new();
     public SeaweedFsSettings SeaweedFS { get; set; } = new();
     public AzureBlobSettings AzureBlob { get; set; } = new();
+    public GarageSettings Garage { get; set; } = new();
 
     /// Binds StorageSettings from flat environment variables.
     public static StorageSettings BindFromConfiguration(IConfiguration configuration)
@@ -39,7 +52,7 @@ public class StorageSettings
             ?? throw new ArgumentNullException(nameof(configuration), "STORAGE_PROVIDER is not set.");
 
         if (!Enum.TryParse<StorageProviderType>(providerStr, true, out var provider))
-            throw new ArgumentException($"Invalid STORAGE_PROVIDER value: '{providerStr}'. Expected: MinIO, SeaweedFS, or AzureBlob.");
+            throw new ArgumentException($"Invalid STORAGE_PROVIDER value: '{providerStr}'. Expected: MinIO, SeaweedFS, AzureBlob, or Garage.");
 
         settings.Provider = provider;
 
@@ -56,6 +69,10 @@ public class StorageSettings
 
             case StorageProviderType.AzureBlob:
                 settings.AzureBlob = BindAzureBlobSettings(configuration);
+                break;
+
+            case StorageProviderType.Garage:
+                settings.Garage = BindGarageSettings(configuration);
                 break;
         }
 
@@ -99,6 +116,27 @@ public class StorageSettings
         {
             ConnectionString = configuration["AZURE_BLOB_CONNECTION_STRING"]
                 ?? throw new ArgumentNullException(nameof(configuration), "AZURE_BLOB_CONNECTION_STRING is not set.")
+        };
+    }
+
+    private static GarageSettings BindGarageSettings(IConfiguration configuration)
+    {
+        return new GarageSettings
+        {
+            Endpoint = configuration["GARAGE_ENDPOINT"]
+                ?? throw new ArgumentNullException(nameof(configuration), "GARAGE_ENDPOINT is not set."),
+
+            AccessKey = configuration["GARAGE_ACCESS_KEY"]
+                ?? throw new ArgumentNullException(nameof(configuration), "GARAGE_ACCESS_KEY is not set."),
+
+            SecretKey = configuration["GARAGE_SECRET_KEY"]
+                ?? throw new ArgumentNullException(nameof(configuration), "GARAGE_SECRET_KEY is not set."),
+
+            UseSsl = bool.Parse(
+                configuration["GARAGE_USE_SSL"]
+                ?? throw new ArgumentNullException(nameof(configuration), "GARAGE_USE_SSL is not set.")),
+
+            Region = configuration["GARAGE_REGION"] ?? "garage"
         };
     }
 }

@@ -1,0 +1,275 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+using Minio;
+using Minio.DataModel.Args;
+
+using Storage.Domain.Interfaces;
+using Storage.Domain.Exceptions;
+using Storage.Domain.ValueObjects;
+using Storage.Application.Configuration;
+
+namespace Storage.Infrastructure.Providers.Garage;
+
+// Garage (https://garagehq.deuxfleurs.fr) is an open-source, geo-distributed S3-compatible
+// object store written in Rust. It exposes a standard S3 API, so the MinIO SDK is used to
+// communicate with it — the key differences from MinIO are:
+//   - An explicit region must be set (any non-empty string; conventionally "garage")
+//   - Garage does not support object locking or some advanced S3 features
+//   - Path-style access is the default and required for single-node setups
+public class GarageStorageProvider : IStorageProvider
+{
+    private readonly IMinioClient _client;
+    private readonly ILogger<GarageStorageProvider> _logger;
+
+    public GarageStorageProvider(IOptions<StorageSettings> options, ILogger<GarageStorageProvider> logger)
+    {
+        _logger = logger;
+        var settings = options.Value.Garage;
+
+        var builder = new MinioClient()
+            .WithEndpoint(settings.Endpoint)
+            .WithCredentials(settings.AccessKey, settings.SecretKey)
+            .WithRegion(settings.Region);
+
+        if (settings.UseSsl)
+            builder = builder.WithSSL();
+
+        _client = builder.Build();
+
+        _logger.LogInformation(
+            "Garage storage provider initialized with endpoint: {Endpoint}, region: {Region}",
+            settings.Endpoint, settings.Region);
+    }
+
+    public async Task<StorageObjectInfo> UploadAsync(
+        string bucket,
+        string key,
+        Stream content,
+        string contentType,
+        Dictionary<string, string>? metadata = null,
+        CancellationToken ct = default)
+    {
+        await EnsureBucketExistsAsync(bucket, ct);
+
+        // Capture size before upload — the SDK's PutObjectResponse.Size is always 0
+        var originalSize = content.CanSeek ? content.Length : 0;
+
+        var putArgs = new PutObjectArgs()
+            .WithBucket(bucket)
+            .WithObject(key)
+            .WithStreamData(content)
+            .WithObjectSize(content.CanSeek ? content.Length : -1)
+            .WithContentType(contentType);
+
+        if (metadata != null && metadata.Count > 0)
+            putArgs = putArgs.WithHeaders(metadata);
+
+        var response = await _client.PutObjectAsync(putArgs, ct);
+
+        _logger.LogInformation("Uploaded object {Key} to bucket {Bucket} ({Size} bytes)", key, bucket, originalSize);
+
+        return new StorageObjectInfo
+        {
+            Bucket = bucket,
+            Key = key,
+            Size = originalSize,
+            ContentType = contentType,
+            ETag = response.Etag,
+            LastModified = DateTime.UtcNow,
+            Metadata = metadata ?? new Dictionary<string, string>()
+        };
+    }
+
+    public async Task<Stream> DownloadAsync(
+        string bucket,
+        string key,
+        CancellationToken ct = default)
+    {
+        var memoryStream = new MemoryStream();
+
+        try
+        {
+            var getArgs = new GetObjectArgs()
+                .WithBucket(bucket)
+                .WithObject(key)
+                .WithCallbackStream(async (stream, cancellationToken) =>
+                {
+                    await stream.CopyToAsync(memoryStream, cancellationToken);
+                });
+
+            await _client.GetObjectAsync(getArgs, ct);
+        }
+        catch (Minio.Exceptions.ObjectNotFoundException)
+        {
+            throw new StorageObjectNotFoundException(bucket, key);
+        }
+        catch (Minio.Exceptions.BucketNotFoundException)
+        {
+            throw new StorageObjectNotFoundException(bucket, key);
+        }
+
+        memoryStream.Position = 0;
+
+        _logger.LogInformation("Downloaded object {Key} from bucket {Bucket}", key, bucket);
+
+        return memoryStream;
+    }
+
+    public async Task DeleteAsync(
+        string bucket,
+        string key,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var removeArgs = new RemoveObjectArgs()
+                .WithBucket(bucket)
+                .WithObject(key);
+
+            await _client.RemoveObjectAsync(removeArgs, ct);
+
+            _logger.LogInformation("Deleted object {Key} from bucket {Bucket}", key, bucket);
+        }
+        catch (Minio.Exceptions.BucketNotFoundException)
+        {
+            // Bucket is gone — object is effectively gone too, treat as a no-op
+            _logger.LogWarning("Bucket {Bucket} not found during delete of {Key} — treating as no-op", bucket, key);
+        }
+    }
+
+    public async Task<StorageObjectInfo> GetMetadataAsync(
+        string bucket,
+        string key,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var statArgs = new StatObjectArgs()
+                .WithBucket(bucket)
+                .WithObject(key);
+
+            var stat = await _client.StatObjectAsync(statArgs, ct);
+
+            return new StorageObjectInfo
+            {
+                Bucket = bucket,
+                Key = key,
+                Size = stat.Size,
+                ContentType = stat.ContentType,
+                ETag = stat.ETag,
+                LastModified = stat.LastModified,
+                Metadata = stat.MetaData != null
+                    ? new Dictionary<string, string>(stat.MetaData, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>()
+            };
+        }
+        catch (Minio.Exceptions.ObjectNotFoundException)
+        {
+            throw new StorageObjectNotFoundException(bucket, key);
+        }
+        catch (Minio.Exceptions.BucketNotFoundException)
+        {
+            throw new StorageObjectNotFoundException(bucket, key);
+        }
+    }
+
+    public async Task<bool> ExistsAsync(
+        string bucket,
+        string key,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var statArgs = new StatObjectArgs()
+                .WithBucket(bucket)
+                .WithObject(key);
+
+            await _client.StatObjectAsync(statArgs, ct);
+            return true;
+        }
+        catch (Minio.Exceptions.ObjectNotFoundException)
+        {
+            return false;
+        }
+        catch (Minio.Exceptions.BucketNotFoundException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<IReadOnlyList<StorageObjectInfo>> ListAsync(
+        string bucket,
+        string? prefix = null,
+        CancellationToken ct = default)
+    {
+        var results = new List<StorageObjectInfo>();
+
+        var listArgs = new ListObjectsArgs()
+            .WithBucket(bucket)
+            .WithRecursive(true);
+
+        if (!string.IsNullOrWhiteSpace(prefix))
+            listArgs = listArgs.WithPrefix(prefix);
+
+        // Note: the S3 list API does not return ContentType or Metadata per object.
+        // A StatObjectAsync call per item would be needed to retrieve those — too expensive at scale.
+        // Callers should not rely on ContentType or Metadata being populated in list results.
+        await foreach (var item in _client.ListObjectsEnumAsync(listArgs, ct))
+        {
+            if (!item.IsDir)
+            {
+                results.Add(new StorageObjectInfo
+                {
+                    Bucket = bucket,
+                    Key = item.Key,
+                    Size = (long)item.Size,
+                    ContentType = string.Empty,
+                    ETag = item.ETag,
+                    LastModified = item.LastModifiedDateTime ?? DateTime.MinValue,
+                    Metadata = new Dictionary<string, string>()
+                });
+            }
+        }
+
+        _logger.LogInformation("Listed {Count} objects in bucket {Bucket} with prefix '{Prefix}'",
+            results.Count, bucket, prefix);
+
+        return results.AsReadOnly();
+    }
+
+    public async Task<string> GetPresignedUrlAsync(
+        string bucket,
+        string key,
+        TimeSpan expiry,
+        CancellationToken ct = default)
+    {
+        var presignedArgs = new PresignedGetObjectArgs()
+            .WithBucket(bucket)
+            .WithObject(key)
+            .WithExpiry((int)expiry.TotalSeconds);
+
+        // Note: the SDK's PresignedGetObjectAsync does not accept a CancellationToken
+        var url = await _client.PresignedGetObjectAsync(presignedArgs);
+
+        _logger.LogInformation("Generated presigned URL for {Key} in bucket {Bucket} (expires in {Expiry})",
+            key, bucket, expiry);
+
+        return url;
+    }
+
+    public async Task EnsureBucketExistsAsync(
+        string bucket,
+        CancellationToken ct = default)
+    {
+        var existsArgs = new BucketExistsArgs().WithBucket(bucket);
+        var exists = await _client.BucketExistsAsync(existsArgs, ct);
+
+        if (!exists)
+        {
+            var makeArgs = new MakeBucketArgs().WithBucket(bucket);
+            await _client.MakeBucketAsync(makeArgs, ct);
+            _logger.LogInformation("Created bucket {Bucket}", bucket);
+        }
+    }
+}
