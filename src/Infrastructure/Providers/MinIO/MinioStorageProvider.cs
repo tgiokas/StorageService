@@ -5,6 +5,7 @@ using Minio;
 using Minio.DataModel.Args;
 
 using Storage.Domain.Interfaces;
+using Storage.Domain.Exceptions;
 using Storage.Domain.ValueObjects;
 using Storage.Application.Configuration;
 
@@ -42,6 +43,9 @@ public class MinioStorageProvider : IStorageProvider
     {
         await EnsureBucketExistsAsync(bucket, ct);
 
+        // Capture size before upload — MinIO's PutObjectResponse.Size is always 0
+        var originalSize = content.CanSeek ? content.Length : 0;
+
         var putArgs = new PutObjectArgs()
             .WithBucket(bucket)
             .WithObject(key)
@@ -50,19 +54,17 @@ public class MinioStorageProvider : IStorageProvider
             .WithContentType(contentType);
 
         if (metadata != null && metadata.Count > 0)
-        {
             putArgs = putArgs.WithHeaders(metadata);
-        }
 
         var response = await _client.PutObjectAsync(putArgs, ct);
 
-        _logger.LogInformation("Uploaded object {Key} to bucket {Bucket} ({Size} bytes)", key, bucket, response.Size);
+        _logger.LogInformation("Uploaded object {Key} to bucket {Bucket} ({Size} bytes)", key, bucket, originalSize);
 
         return new StorageObjectInfo
         {
             Bucket = bucket,
             Key = key,
-            Size = response.Size,
+            Size = originalSize, // response.Size is always 0 from the MinIO SDK — use captured value
             ContentType = contentType,
             ETag = response.Etag,
             LastModified = DateTime.UtcNow,
@@ -77,15 +79,26 @@ public class MinioStorageProvider : IStorageProvider
     {
         var memoryStream = new MemoryStream();
 
-        var getArgs = new GetObjectArgs()
-            .WithBucket(bucket)
-            .WithObject(key)
-            .WithCallbackStream(async (stream, cancellationToken) =>
-            {
-                await stream.CopyToAsync(memoryStream, cancellationToken);
-            });
+        try
+        {
+            var getArgs = new GetObjectArgs()
+                .WithBucket(bucket)
+                .WithObject(key)
+                .WithCallbackStream(async (stream, cancellationToken) =>
+                {
+                    await stream.CopyToAsync(memoryStream, cancellationToken);
+                });
 
-        await _client.GetObjectAsync(getArgs, ct);
+            await _client.GetObjectAsync(getArgs, ct);
+        }
+        catch (Minio.Exceptions.ObjectNotFoundException)
+        {
+            throw new StorageObjectNotFoundException(bucket, key);
+        }
+        catch (Minio.Exceptions.BucketNotFoundException)
+        {
+            throw new StorageObjectNotFoundException(bucket, key);
+        }
 
         memoryStream.Position = 0;
 
@@ -99,13 +112,21 @@ public class MinioStorageProvider : IStorageProvider
         string key,
         CancellationToken ct = default)
     {
-        var removeArgs = new RemoveObjectArgs()
-            .WithBucket(bucket)
-            .WithObject(key);
+        try
+        {
+            var removeArgs = new RemoveObjectArgs()
+                .WithBucket(bucket)
+                .WithObject(key);
 
-        await _client.RemoveObjectAsync(removeArgs, ct);
+            await _client.RemoveObjectAsync(removeArgs, ct);
 
-        _logger.LogInformation("Deleted object {Key} from bucket {Bucket}", key, bucket);
+            _logger.LogInformation("Deleted object {Key} from bucket {Bucket}", key, bucket);
+        }
+        catch (Minio.Exceptions.BucketNotFoundException)
+        {
+            // Bucket is gone — object is effectively gone too, treat as a no-op
+            _logger.LogWarning("Bucket {Bucket} not found during delete of {Key} — treating as no-op", bucket, key);
+        }
     }
 
     public async Task<StorageObjectInfo> GetMetadataAsync(
@@ -113,24 +134,35 @@ public class MinioStorageProvider : IStorageProvider
         string key,
         CancellationToken ct = default)
     {
-        var statArgs = new StatObjectArgs()
-            .WithBucket(bucket)
-            .WithObject(key);
-
-        var stat = await _client.StatObjectAsync(statArgs, ct);
-
-        return new StorageObjectInfo
+        try
         {
-            Bucket = bucket,
-            Key = key,
-            Size = stat.Size,
-            ContentType = stat.ContentType,
-            ETag = stat.ETag,
-            LastModified = stat.LastModified,
-            Metadata = stat.MetaData != null
-                ? new Dictionary<string, string>(stat.MetaData, StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, string>()
-        };
+            var statArgs = new StatObjectArgs()
+                .WithBucket(bucket)
+                .WithObject(key);
+
+            var stat = await _client.StatObjectAsync(statArgs, ct);
+
+            return new StorageObjectInfo
+            {
+                Bucket = bucket,
+                Key = key,
+                Size = stat.Size,
+                ContentType = stat.ContentType,
+                ETag = stat.ETag,
+                LastModified = stat.LastModified,
+                Metadata = stat.MetaData != null
+                    ? new Dictionary<string, string>(stat.MetaData, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>()
+            };
+        }
+        catch (Minio.Exceptions.ObjectNotFoundException)
+        {
+            throw new StorageObjectNotFoundException(bucket, key);
+        }
+        catch (Minio.Exceptions.BucketNotFoundException)
+        {
+            throw new StorageObjectNotFoundException(bucket, key);
+        }
     }
 
     public async Task<bool> ExistsAsync(
@@ -169,10 +201,11 @@ public class MinioStorageProvider : IStorageProvider
             .WithRecursive(true);
 
         if (!string.IsNullOrWhiteSpace(prefix))
-        {
             listArgs = listArgs.WithPrefix(prefix);
-        }
 
+        // Note: the MinIO list API does not return ContentType or Metadata per object.
+        // A StatObjectAsync call per item would be needed to retrieve those — too expensive at scale.
+        // Callers should not rely on ContentType or Metadata being populated in list results.
         await foreach (var item in _client.ListObjectsEnumAsync(listArgs, ct))
         {
             if (!item.IsDir)
@@ -190,7 +223,8 @@ public class MinioStorageProvider : IStorageProvider
             }
         }
 
-        _logger.LogInformation("Listed {Count} objects in bucket {Bucket} with prefix '{Prefix}'", results.Count, bucket, prefix);
+        _logger.LogInformation("Listed {Count} objects in bucket {Bucket} with prefix '{Prefix}'",
+            results.Count, bucket, prefix);
 
         return results.AsReadOnly();
     }
@@ -206,9 +240,11 @@ public class MinioStorageProvider : IStorageProvider
             .WithObject(key)
             .WithExpiry((int)expiry.TotalSeconds);
 
+        // Note: MinIO SDK's PresignedGetObjectAsync does not accept a CancellationToken
         var url = await _client.PresignedGetObjectAsync(presignedArgs);
 
-        _logger.LogInformation("Generated presigned URL for {Key} in bucket {Bucket} (expires in {Expiry})", key, bucket, expiry);
+        _logger.LogInformation("Generated presigned URL for {Key} in bucket {Bucket} (expires in {Expiry})",
+            key, bucket, expiry);
 
         return url;
     }
@@ -217,18 +253,13 @@ public class MinioStorageProvider : IStorageProvider
         string bucket,
         CancellationToken ct = default)
     {
-        var existsArgs = new BucketExistsArgs()
-            .WithBucket(bucket);
-
+        var existsArgs = new BucketExistsArgs().WithBucket(bucket);
         var exists = await _client.BucketExistsAsync(existsArgs, ct);
 
         if (!exists)
         {
-            var makeArgs = new MakeBucketArgs()
-                .WithBucket(bucket);
-
+            var makeArgs = new MakeBucketArgs().WithBucket(bucket);
             await _client.MakeBucketAsync(makeArgs, ct);
-
             _logger.LogInformation("Created bucket {Bucket}", bucket);
         }
     }
