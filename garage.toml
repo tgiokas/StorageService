@@ -9,9 +9,8 @@ db_engine = "lmdb"
 # Replication factor: 1 = no replication (single-node dev setup)
 replication_factor = 1
 
-[rpc_bind_addr]
-# Internal RPC (cluster communication) — single-node, bound to loopback
-bind_addr = "0.0.0.0:3903"
+# Internal RPC (cluster communication) — single-node
+rpc_bind_addr = "0.0.0.0:3903"
 
 [s3_api]
 s3_region = "garage"
