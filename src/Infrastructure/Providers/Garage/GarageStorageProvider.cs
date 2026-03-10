@@ -249,7 +249,6 @@ public class GarageStorageProvider : IStorageProvider
             .WithObject(key)
             .WithExpiry((int)expiry.TotalSeconds);
 
-        // Note: the SDK's PresignedGetObjectAsync does not accept a CancellationToken
         var url = await _client.PresignedGetObjectAsync(presignedArgs);
 
         _logger.LogInformation("Generated presigned URL for {Key} in bucket {Bucket} (expires in {Expiry})",
