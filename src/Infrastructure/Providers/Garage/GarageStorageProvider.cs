@@ -249,6 +249,7 @@ public class GarageStorageProvider : IStorageProvider
             .WithObject(key)
             .WithExpiry((int)expiry.TotalSeconds);
 
+
         var url = await _client.PresignedGetObjectAsync(presignedArgs);
 
         _logger.LogInformation("Generated presigned URL for {Key} in bucket {Bucket} (expires in {Expiry})",

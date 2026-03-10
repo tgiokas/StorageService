@@ -78,15 +78,14 @@ public class DocumentIndexService : IDocumentIndexService
                 SortDescending = request.SortDescending
             };
 
-            var results = await _repository.SearchAsync(query, ct);
-            var total = await _repository.CountAsync(query, ct);
+            var results = await _repository.SearchAsync(query, ct);           
 
             var pagedResult = new PagedResultDto<DocumentIndexDto>
             {
                 Results = results.Select(MapToDto).ToList(),
                 CurrentPage = request.Page,
                 PageSize = request.PageSize,
-                Total = total
+                Total = results.Count
             };
 
             return Result<PagedResultDto<DocumentIndexDto>>.Ok(pagedResult);
