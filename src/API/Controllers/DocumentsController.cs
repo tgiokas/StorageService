@@ -25,7 +25,7 @@ public class DocumentsController : ControllerBase
         string bucket,
         IFormFile file,
         [FromQuery] string? key = null,
-        [FromQuery] string? tags = null,
+        [FromQuery] string? metadata = null,
         [FromQuery] string? uploadedBy = null,
         CancellationToken ct = default)
     {
@@ -38,11 +38,11 @@ public class DocumentsController : ControllerBase
 
         // Parse tags from JSON query string if provided
         Dictionary<string, string>? parsedTags = null;
-        if (!string.IsNullOrWhiteSpace(tags))
+        if (!string.IsNullOrWhiteSpace(metadata))
         {
             try
             {
-                parsedTags = JsonSerializer.Deserialize<Dictionary<string, string>>(tags);
+                parsedTags = JsonSerializer.Deserialize<Dictionary<string, string>>(metadata);
             }
             catch
             {
@@ -58,7 +58,7 @@ public class DocumentsController : ControllerBase
             Content = stream,
             ContentType = file.ContentType,
             UploadedBy = uploadedBy,
-            Tags = parsedTags
+            Metadata = parsedTags
         };
 
         var result = await _storageService.UploadAsync(request, ct);

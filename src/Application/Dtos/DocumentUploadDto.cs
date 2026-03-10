@@ -10,5 +10,5 @@ public class DocumentUploadDto
 
     /// Optional tags for the document index (e.g. department, document_type).
     /// Only used when indexing is enabled.
-    public Dictionary<string, string>? Tags { get; set; }
+    public Dictionary<string, string>? Metadata { get; set; }
 }

@@ -62,9 +62,9 @@ public class DocumentStorageService : IDocumentStorageService
 
             // Prefix tag keys so they don't collide with system metadata (e.g. x-encrypted)
             Dictionary<string, string>? objectMetadata = null;
-            if (request.Tags != null && request.Tags.Count > 0)
+            if (request.Metadata != null && request.Metadata.Count > 0)
             {
-                objectMetadata = request.Tags
+                objectMetadata = request.Metadata
                     .ToDictionary(kvp => $"x-tag-{kvp.Key}", kvp => kvp.Value);
             }
 
@@ -304,7 +304,7 @@ public class DocumentStorageService : IDocumentStorageService
             IsEncrypted = metadata.Metadata.ContainsKey("x-encrypted"),
             UploadedBy = request.UploadedBy,
             UploadedAt = DateTime.UtcNow,
-            Tags = request.Tags ?? new Dictionary<string, string>()
+            Tags = request.Metadata ?? new Dictionary<string, string>()
         };
 
         await _indexRepository!.AddAsync(indexEntry, ct);
