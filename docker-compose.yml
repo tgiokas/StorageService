@@ -21,8 +21,8 @@ services:
   #     interval: 10s
   #     timeout: 5s
   #     retries: 5
-  #     start_period: 30s    
-    
+  #     start_period: 30s
+
   minio:
     image: minio/minio:latest
     container_name: minio
@@ -92,21 +92,10 @@ services:
       - .env
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
-      STORAGE_PROVIDER: ${STORAGE_PROVIDER}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      MINIO_USE_SSL: ${MINIO_USE_SSL}
-      SEAWEEDFS_MASTER_URL: ${SEAWEEDFS_MASTER_URL}
-      SEAWEEDFS_FILER_URL: ${SEAWEEDFS_FILER_URL}
-      AZURE_BLOB_CONNECTION_STRING: ${AZURE_BLOB_CONNECTION_STRING}
-      GARAGE_ENDPOINT: ${GARAGE_ENDPOINT}
-      GARAGE_ACCESS_KEY: ${GARAGE_ACCESS_KEY}
-      GARAGE_SECRET_KEY: ${GARAGE_SECRET_KEY}
-      GARAGE_USE_SSL: ${GARAGE_USE_SSL}
-      GARAGE_REGION: ${GARAGE_REGION}
     depends_on:
       minio:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     ports:
       - "5034:8080"
@@ -114,7 +103,7 @@ services:
       - archium-network
     volumes:
       - ./error-codes/errors.json:/app/errors.json:ro
- 
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
     container_name: elasticsearch
@@ -122,12 +111,18 @@ services:
       - "9200:9200"
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false      
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g     
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
     networks:
       - archium-network
     # volumes:
     #   - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
     restart: always
 
   kibana:
@@ -139,14 +134,14 @@ services:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - xpack.security.enabled=false
     networks:
-      - archium-network   
+      - archium-network
     depends_on:
       - elasticsearch
     restart: always
 
 volumes:
-  storage-db-data: 
-      
+  storage-db-data:
+
 networks:
   archium-network:
     driver: bridge
