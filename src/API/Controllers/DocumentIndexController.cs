@@ -30,20 +30,6 @@ public class DocumentIndexController : ControllerBase
         return Ok(result);
     }
     
-    /// Get a document index entry by its ID.    
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct = default)
-    {
-        var result = await _indexService.GetByIdAsync(id, ct);
-
-        if (!result.Success)
-        {
-            return Accepted(result);
-        }
-
-        return Ok(result);
-    }
-    
     /// Get a document index entry by bucket and key.    
     [HttpGet("{bucket}/lookup")]
     public async Task<IActionResult> GetByBucketAndKey(string bucket, [FromQuery] string key, CancellationToken ct = default)

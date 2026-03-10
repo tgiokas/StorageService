@@ -24,23 +24,6 @@ public class DocumentIndexService : IDocumentIndexService
         _logger = logger;
     }
 
-    public async Task<Result<DocumentIndexDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
-    {
-        try
-        {
-            var doc = await _repository.GetByIdAsync(id, ct);
-            if (doc == null)
-                return _errors.Fail<DocumentIndexDto>(ErrorCodes.STORAGE.IndexEntryNotFound);
-
-            return Result<DocumentIndexDto>.Ok(MapToDto(doc));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get index entry by id {Id}", id);
-            return _errors.Fail<DocumentIndexDto>(ErrorCodes.STORAGE.IndexQueryFailed);
-        }
-    }
-
     public async Task<Result<DocumentIndexDto>> GetByBucketAndKeyAsync(string bucket, string key, CancellationToken ct = default)
     {
         try
