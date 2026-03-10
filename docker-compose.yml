@@ -49,9 +49,7 @@ services:
     image: dxflrs/garage:v2.2.0
     container_name: garage
     env_file:
-      - .env
-    environment:
-      GARAGE_ADMIN_TOKEN: "garage-admin-token"
+      - .env      
     ports:
       - "3900:3900"   # S3 API
       - "3901:3901"   # Admin API
