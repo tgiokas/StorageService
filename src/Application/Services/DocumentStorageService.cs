@@ -176,10 +176,6 @@ public class DocumentStorageService : IDocumentStorageService
 
             return Result<bool>.Ok(true, "Document deleted successfully.");
         }
-        catch (StorageObjectNotFoundException)
-        {
-            return _errors.Fail<bool>(ErrorCodes.STORAGE.ObjectNotFound);
-        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete document {Key} from bucket {Bucket}", key, bucket);

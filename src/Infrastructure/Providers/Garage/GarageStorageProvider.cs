@@ -4,6 +4,7 @@ using System.Text.Json;
 
 using Minio;
 using Minio.DataModel.Args;
+using Minio.Exceptions;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -112,11 +113,11 @@ public class GarageStorageProvider : IStorageProvider
 
             await _client.GetObjectAsync(getArgs, ct);
         }
-        catch (Minio.Exceptions.ObjectNotFoundException)
+        catch (ObjectNotFoundException)
         {
             throw new StorageObjectNotFoundException(bucket, key);
         }
-        catch (Minio.Exceptions.BucketNotFoundException)
+        catch (BucketNotFoundException)
         {
             throw new StorageObjectNotFoundException(bucket, key);
         }
@@ -133,26 +134,13 @@ public class GarageStorageProvider : IStorageProvider
         string key,
         CancellationToken ct = default)
     {
-        try
-        {
-            var removeArgs = new RemoveObjectArgs()
-                .WithBucket(bucket)
-                .WithObject(key);
+        var removeArgs = new RemoveObjectArgs()
+            .WithBucket(bucket)
+            .WithObject(key);
 
-            await _client.RemoveObjectAsync(removeArgs, ct);
+        await _client.RemoveObjectAsync(removeArgs, ct);
 
-            _logger.LogInformation("Deleted object {Key} from bucket {Bucket}", key, bucket);
-        }
-        catch (Minio.Exceptions.ObjectNotFoundException)
-        {
-            _logger.LogWarning("Object not found during delete of {Key}", key);
-            throw new StorageObjectNotFoundException(bucket, key);
-        }
-        catch (Minio.Exceptions.BucketNotFoundException)
-        {
-            _logger.LogWarning("Bucket {Bucket} not found during delete of {Key}", bucket, key);
-            throw new StorageObjectNotFoundException(bucket, key);
-        }
+        _logger.LogInformation("Deleted object {Key} from bucket {Bucket}", key, bucket);
     }
 
     public async Task<StorageObjectInfo> GetMetadataAsync(
@@ -181,11 +169,11 @@ public class GarageStorageProvider : IStorageProvider
                     : new Dictionary<string, string>()
             };
         }
-        catch (Minio.Exceptions.ObjectNotFoundException)
+        catch (ObjectNotFoundException)
         {
             throw new StorageObjectNotFoundException(bucket, key);
         }
-        catch (Minio.Exceptions.BucketNotFoundException)
+        catch (BucketNotFoundException)
         {
             throw new StorageObjectNotFoundException(bucket, key);
         }
@@ -205,11 +193,11 @@ public class GarageStorageProvider : IStorageProvider
             await _client.StatObjectAsync(statArgs, ct);
             return true;
         }
-        catch (Minio.Exceptions.ObjectNotFoundException)
+        catch (ObjectNotFoundException)
         {
             return false;
         }
-        catch (Minio.Exceptions.BucketNotFoundException)
+        catch (BucketNotFoundException)
         {
             return false;
         }
