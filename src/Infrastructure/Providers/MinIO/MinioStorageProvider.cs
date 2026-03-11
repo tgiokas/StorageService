@@ -122,10 +122,13 @@ public class MinioStorageProvider : IStorageProvider
 
             _logger.LogInformation("Deleted object {Key} from bucket {Bucket}", key, bucket);
         }
+        catch (Minio.Exceptions.ObjectNotFoundException)
+        {
+            _logger.LogWarning("Object not found during delete of {Key}", key);
+        }
         catch (Minio.Exceptions.BucketNotFoundException)
         {
-            // Bucket is gone — object is effectively gone too, treat as a no-op
-            _logger.LogWarning("Bucket {Bucket} not found during delete of {Key} — treating as no-op", bucket, key);
+            _logger.LogWarning("Bucket {Bucket} not found during delete of {Key}", bucket, key);
         }
     }
 

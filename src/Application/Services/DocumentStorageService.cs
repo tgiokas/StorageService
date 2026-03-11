@@ -158,11 +158,7 @@ public class DocumentStorageService : IDocumentStorageService
             return _errors.Fail<bool>(ErrorCodes.STORAGE.InvalidKey);
 
         try
-        {
-            var exists = await _storageProvider.ExistsAsync(bucket, key, ct);
-            if (!exists)
-                return _errors.Fail<bool>(ErrorCodes.STORAGE.ObjectNotFound);
-
+        {            
             await _storageProvider.DeleteAsync(bucket, key, ct);
 
             if (IsIndexingEnabled)
@@ -180,6 +176,10 @@ public class DocumentStorageService : IDocumentStorageService
 
             return Result<bool>.Ok(true, "Document deleted successfully.");
         }
+        catch (StorageObjectNotFoundException)
+        {
+            return _errors.Fail<bool>(ErrorCodes.STORAGE.ObjectNotFound);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete document {Key} from bucket {Bucket}", key, bucket);
@@ -196,15 +196,15 @@ public class DocumentStorageService : IDocumentStorageService
             return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.InvalidKey);
 
         try
-        {
-            var exists = await _storageProvider.ExistsAsync(bucket, key, ct);
-            if (!exists)
-                return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.ObjectNotFound);
-
+        {           
             var metadata = await _storageProvider.GetMetadataAsync(bucket, key, ct);
             var dto = MapToDto(metadata);
 
             return Result<StorageObjectDto>.Ok(dto);
+        }
+        catch (StorageObjectNotFoundException)
+        {
+            return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.ObjectNotFound);
         }
         catch (Exception ex)
         {
