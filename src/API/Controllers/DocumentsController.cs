@@ -139,6 +139,20 @@ public class DocumentsController : ControllerBase
         return Ok(result);
     }
 
+    /// List documents in a bucket, optionally filtered by prefix.    
+    [HttpGet("{bucket}")]
+    public async Task<IActionResult> List(string bucket, [FromQuery] string? prefix = null, CancellationToken ct = default)
+    {
+        var result = await _storageService.ListAsync(bucket, prefix, ct);
+
+        if (!result.Success)
+        {
+            return Accepted(result);
+        }
+
+        return Ok(result);
+    }
+
     /// Generate a presigned URL for downloading a document.    
     [HttpPost("{bucket}/presigned-url")]
     public async Task<IActionResult> GetPresignedUrl(string bucket, [FromQuery] string key, [FromQuery] int expiryMinutes = 60, CancellationToken ct = default)

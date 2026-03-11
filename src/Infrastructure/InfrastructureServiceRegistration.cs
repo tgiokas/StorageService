@@ -84,8 +84,7 @@ public static class InfrastructureServiceRegistration
         // Add Error Catalog Path
         var path = Path.Combine(Environment.CurrentDirectory, "errors.json");
         if (!File.Exists(path))
-            throw new FileNotFoundException($"errors.json not found at: {path}");
-        
+            throw new FileNotFoundException($"errors.json not found at: {path}");        
         var errorcat = ErrorCatalog.LoadFromFile(path);
         services.AddSingleton<IErrorCatalog>(errorcat);
 

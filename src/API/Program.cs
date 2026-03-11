@@ -1,11 +1,7 @@
-using Microsoft.EntityFrameworkCore;
-
 using Serilog;
 
 using Storage.Api.Middlewares;
 using Storage.Application;
-using Storage.Application.Errors;
-using Storage.Application.Interfaces;
 using Storage.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -49,7 +45,6 @@ if (builder.Environment.IsDevelopment())
 }
 
 var app = builder.Build();
-
 
 // Expose a simple health endpoint at /health
 app.MapHealthChecks("/health");
