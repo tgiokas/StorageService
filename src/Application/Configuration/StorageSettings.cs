@@ -30,8 +30,11 @@ public class GarageSettings
     public string AccessKey { get; set; } = string.Empty;
     public string SecretKey { get; set; } = string.Empty;
     public bool UseSsl { get; set; } = false;
-    // Garage requires an explicit region; any non-empty string is accepted (default: "garage").
+    // Garage requires an explicit region (default: "garage").
     public string Region { get; set; } = "garage";
+    // Garage Admin API endpoint (default port 3901) / used for bucket creation and key permission grants.
+    public string AdminEndpoint { get; set; } = string.Empty;
+    public string AdminToken { get; set; } = string.Empty;
 }
 
 public class StorageSettings
@@ -47,7 +50,7 @@ public class StorageSettings
     {
         var settings = new StorageSettings();
 
-        // Provider 
+        // Provider
         var providerStr = configuration["STORAGE_PROVIDER"]
             ?? throw new ArgumentNullException(nameof(configuration), "STORAGE_PROVIDER is not set.");
 
@@ -136,8 +139,13 @@ public class StorageSettings
                 configuration["GARAGE_USE_SSL"]
                 ?? throw new ArgumentNullException(nameof(configuration), "GARAGE_USE_SSL is not set.")),
 
-            Region = configuration["GARAGE_REGION"] ?? "garage"
-        };
-    }
-}
+            Region = configuration["GARAGE_REGION"] ?? "garage",
 
+            AdminEndpoint = configuration["GARAGE_ADMIN_ENDPOINT"]
+                ?? throw new ArgumentNullException(nameof(configuration), "GARAGE_ADMIN_ENDPOINT is not set."),
+
+            AdminToken = configuration["GARAGE_ADMIN_TOKEN"]
+                ?? throw new ArgumentNullException(nameof(configuration), "GARAGE_ADMIN_TOKEN is not set.")
+        };
+    }    
+}

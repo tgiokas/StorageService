@@ -69,11 +69,15 @@ services:
   garage-ui:
     image: khairul169/garage-webui:latest
     container_name: garage-ui
+    env_file:
+      - .env
     ports:
       - "3909:3909"   # Web UI
     environment:
-      API_BASE_URL: http://garage:3901
-      S3_ENDPOINT_URL: http://garage:3900
+      API_BASE_URL:  ${GARAGE_ADMIN_ENDPOINT}
+      S3_ENDPOINT_URL: ${GARAGE_S3_ENDPOINT}
+      S3_ACCESS_KEY_ID: ${GARAGE_ACCESS_KEY}
+      S3_SECRET_ACCESS_KEY: ${GARAGE_SECRET_KEY}      
     volumes:
       - ./garage.toml:/etc/garage.toml:ro
     depends_on:

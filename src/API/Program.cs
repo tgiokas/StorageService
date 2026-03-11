@@ -26,16 +26,8 @@ builder.Host.UseSerilog();
 // Add Application services
 builder.Services.AddApplicationServices();
 
-// Add Storage Infrastructure (provider selection + encryption + indexing)
-builder.Services.AddStorageInfrastructure(builder.Configuration);
-
-// Add Error Catalog Path
-var path = Path.Combine(builder.Environment.ContentRootPath, "errors.json");
-if (!File.Exists(path))
-    throw new FileNotFoundException($"errors.json not found at: {path}");
-Log.Information("Using error catalog at: {Path}", path);
-var errorcat = ErrorCatalog.LoadFromFile(path);
-builder.Services.AddSingleton<IErrorCatalog>(errorcat);
+// Add Infrastructure (provider selection + encryption + indexing)
+builder.Services.AddInfrastructureServices(builder.Configuration);
 
 builder.Services.AddControllers();
 

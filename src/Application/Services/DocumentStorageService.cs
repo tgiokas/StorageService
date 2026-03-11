@@ -233,24 +233,22 @@ public class DocumentStorageService : IDocumentStorageService
         }
     }
 
-    public async Task<Result<List<StorageObjectDto>>> ListAsync(string bucket, string? prefix = null, CancellationToken ct = default)
+    public async Task<Result<bool>> EnsureBucketExistsAsync(string bucket, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(bucket))
-            return _errors.Fail<List<StorageObjectDto>>(ErrorCodes.STORAGE.InvalidBucket);
+            return _errors.Fail<bool>(ErrorCodes.STORAGE.InvalidBucket);
 
         try
         {
-            var objects = await _storageProvider.ListAsync(bucket, prefix, ct);
-            var dtos = objects.Select(MapToDto).ToList();
-
-            return Result<List<StorageObjectDto>>.Ok(dtos);
+            await _storageProvider.EnsureBucketExistsAsync(bucket, ct);
+            return Result<bool>.Ok(true, $"Bucket '{bucket}' is ready.");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to list objects in bucket {Bucket} with prefix {Prefix}", bucket, prefix);
-            return _errors.Fail<List<StorageObjectDto>>(ErrorCodes.STORAGE.ListObjectsFailed);
+            _logger.LogError(ex, "Failed to ensure bucket {Bucket} exists", bucket);
+            return _errors.Fail<bool>(ErrorCodes.STORAGE.BucketCreationFailed);
         }
-    }
+    }        
 
     public async Task<Result<string>> GetPresignedUrlAsync(PresignedUrlDto request, CancellationToken ct = default)
     {
@@ -274,20 +272,22 @@ public class DocumentStorageService : IDocumentStorageService
         }
     }
 
-    public async Task<Result<bool>> EnsureBucketExistsAsync(string bucket, CancellationToken ct = default)
+    public async Task<Result<List<StorageObjectDto>>> ListAsync(string bucket, string? prefix = null, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(bucket))
-            return _errors.Fail<bool>(ErrorCodes.STORAGE.InvalidBucket);
+            return _errors.Fail<List<StorageObjectDto>>(ErrorCodes.STORAGE.InvalidBucket);
 
         try
         {
-            await _storageProvider.EnsureBucketExistsAsync(bucket, ct);
-            return Result<bool>.Ok(true, $"Bucket '{bucket}' is ready.");
+            var objects = await _storageProvider.ListAsync(bucket, prefix, ct);
+            var dtos = objects.Select(MapToDto).ToList();
+
+            return Result<List<StorageObjectDto>>.Ok(dtos);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to ensure bucket {Bucket} exists", bucket);
-            return _errors.Fail<bool>(ErrorCodes.STORAGE.BucketCreationFailed);
+            _logger.LogError(ex, "Failed to list objects in bucket {Bucket} with prefix {Prefix}", bucket, prefix);
+            return _errors.Fail<List<StorageObjectDto>>(ErrorCodes.STORAGE.ListObjectsFailed);
         }
     }
 

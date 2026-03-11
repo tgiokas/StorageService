@@ -1,8 +1,12 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 
 using Minio;
 using Minio.DataModel.Args;
+
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using Storage.Domain.Interfaces;
 using Storage.Domain.Exceptions;
@@ -16,30 +20,39 @@ namespace Storage.Infrastructure.Providers.Garage;
 // communicate with it — the key differences from MinIO are:
 //   - An explicit region must be set (any non-empty string; conventionally "garage")
 //   - Garage does not support object locking or some advanced S3 features
-//   - Path-style access is the default and required for single-node setups
+//   - Bucket creation must go through the Admin API (port 3901), not the S3 API
+//   - After creating a bucket via Admin API the key must be explicitly granted read/write access
 public class GarageStorageProvider : IStorageProvider
 {
     private readonly IMinioClient _client;
+    private readonly HttpClient _adminHttp;
+    private readonly GarageSettings _settings;
     private readonly ILogger<GarageStorageProvider> _logger;
 
     public GarageStorageProvider(IOptions<StorageSettings> options, ILogger<GarageStorageProvider> logger)
     {
         _logger = logger;
-        var settings = options.Value.Garage;
+        _settings = options.Value.Garage;
 
+        // ── S3 client (MinIO SDK) ────────────────────────────────────────────
         var builder = new MinioClient()
-            .WithEndpoint(settings.Endpoint)
-            .WithCredentials(settings.AccessKey, settings.SecretKey)
-            .WithRegion(settings.Region);
+            .WithEndpoint(_settings.Endpoint)
+            .WithCredentials(_settings.AccessKey, _settings.SecretKey)
+            .WithRegion(_settings.Region);
 
-        if (settings.UseSsl)
+        if (_settings.UseSsl)
             builder = builder.WithSSL();
 
         _client = builder.Build();
 
+        // ── Admin HTTP client ────────────────────────────────────────────────
+        _adminHttp = new HttpClient { BaseAddress = new Uri(_settings.AdminEndpoint) };
+        _adminHttp.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", _settings.AdminToken);
+
         _logger.LogInformation(
-            "Garage storage provider initialized with endpoint: {Endpoint}, region: {Region}",
-            settings.Endpoint, settings.Region);
+            "Garage storage provider initialized — S3: {Endpoint}, Admin: {AdminEndpoint}, Region: {Region}",
+            _settings.Endpoint, _settings.AdminEndpoint, _settings.Region);
     }
 
     public async Task<StorageObjectInfo> UploadAsync(
@@ -52,7 +65,6 @@ public class GarageStorageProvider : IStorageProvider
     {
         await EnsureBucketExistsAsync(bucket, ct);
 
-        // Capture size before upload — the SDK's PutObjectResponse.Size is always 0
         var originalSize = content.CanSeek ? content.Length : 0;
 
         var putArgs = new PutObjectArgs()
@@ -133,7 +145,6 @@ public class GarageStorageProvider : IStorageProvider
         }
         catch (Minio.Exceptions.BucketNotFoundException)
         {
-            // Bucket is gone — object is effectively gone too, treat as a no-op
             _logger.LogWarning("Bucket {Bucket} not found during delete of {Key} — treating as no-op", bucket, key);
         }
     }
@@ -160,15 +171,11 @@ public class GarageStorageProvider : IStorageProvider
                 ETag = stat.ETag,
                 LastModified = stat.LastModified,
                 Metadata = stat.MetaData != null
-                    ? new Dictionary<string, string>(stat.MetaData, StringComparer.OrdinalIgnoreCase)
+                    ? new Dictionary<string, string>(stat.MetaData)
                     : new Dictionary<string, string>()
             };
         }
         catch (Minio.Exceptions.ObjectNotFoundException)
-        {
-            throw new StorageObjectNotFoundException(bucket, key);
-        }
-        catch (Minio.Exceptions.BucketNotFoundException)
         {
             throw new StorageObjectNotFoundException(bucket, key);
         }
@@ -198,6 +205,98 @@ public class GarageStorageProvider : IStorageProvider
         }
     }
 
+    public async Task EnsureBucketExistsAsync(
+        string bucket,
+        CancellationToken ct = default)
+    {
+        // CreateBucket
+        // Returns 200 with full bucket info (including id) if created.
+        // Returns 409 if the bucket already exists.      
+        var createUrl = "/v2/CreateBucket";
+        var createContent = new StringContent(
+            JsonSerializer.Serialize(new { globalAlias = bucket }),
+            Encoding.UTF8, "application/json");
+        var createResponse = await _adminHttp.PostAsync(createUrl, createContent, ct);
+        string bucketId;
+
+        if (createResponse.IsSuccessStatusCode)
+        {
+            // Bucket just created — extract id from response body directly
+            var json = await createResponse.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(json);
+            bucketId = doc.RootElement.GetProperty("id").GetString()
+                ?? throw new InvalidOperationException("Garage CreateBucket returned no 'id'.");
+
+            _logger.LogInformation("Created Garage bucket '{Bucket}' with id {Id}", bucket, bucketId);
+        }
+        else if ((int)createResponse.StatusCode == 409)
+        {
+            // GetBucketInfo
+            // Already exists — resolve id 
+            var infoUrl = $"/v2/GetBucketInfo?globalAlias={Uri.EscapeDataString(bucket)}";
+            var infoResponse = await _adminHttp.GetAsync(infoUrl, ct);
+
+            if (!infoResponse.IsSuccessStatusCode)
+            {
+                var errorBody = await infoResponse.Content.ReadAsStringAsync(ct);
+                throw new InvalidOperationException($"Garage GetBucketInfo failed: {infoResponse.StatusCode} — {errorBody}");
+            }
+
+            var infoJson = await infoResponse.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(infoJson);
+            bucketId = doc.RootElement.GetProperty("id").GetString()
+                ?? throw new InvalidOperationException("Garage GetBucketInfo returned no 'id'.");
+
+            _logger.LogDebug("Resolved existing Garage bucket '{Bucket}' id: {Id}", bucket, bucketId);
+        }
+        else
+        {
+            var body = await createResponse.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException($"Garage CreateBucket failed: {createResponse.StatusCode} — {body}");
+        }
+
+        // AllowBucketKey
+        // Grants the configured key read + write access to the bucket. 
+        var allowUrl = "/v2/AllowBucketKey";
+        var allowContent = new StringContent(
+            JsonSerializer.Serialize(new
+            {
+                bucketId,
+                accessKeyId = _settings.AccessKey,
+                permissions = new { read = true, write = true, owner = false }
+            }),
+            Encoding.UTF8, "application/json");
+
+        var allowResponse = await _adminHttp.PostAsync(allowUrl, allowContent, ct);
+
+        if (!allowResponse.IsSuccessStatusCode)
+        {
+            var body = await allowResponse.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException($"Garage AllowBucketKey failed: {allowResponse.StatusCode} — {body}");
+        }
+
+        _logger.LogInformation("Key '{AccessKey}' has read/write access to Garage bucket '{Bucket}'", _settings.AccessKey, bucket);
+    }
+
+    public async Task<string> GetPresignedUrlAsync(
+        string bucket,
+        string key,
+        TimeSpan expiry,
+        CancellationToken ct = default)
+    {
+        var presignedArgs = new PresignedGetObjectArgs()
+            .WithBucket(bucket)
+            .WithObject(key)
+            .WithExpiry((int)expiry.TotalSeconds);
+
+        var url = await _client.PresignedGetObjectAsync(presignedArgs);
+
+        _logger.LogInformation("Generated presigned URL for {Key} in bucket {Bucket} (expires in {Expiry})",
+            key, bucket, expiry);
+
+        return url;
+    }
+
     public async Task<IReadOnlyList<StorageObjectInfo>> ListAsync(
         string bucket,
         string? prefix = null,
@@ -209,12 +308,9 @@ public class GarageStorageProvider : IStorageProvider
             .WithBucket(bucket)
             .WithRecursive(true);
 
-        if (!string.IsNullOrWhiteSpace(prefix))
+        if (!string.IsNullOrEmpty(prefix))
             listArgs = listArgs.WithPrefix(prefix);
 
-        // Note: the S3 list API does not return ContentType or Metadata per object.
-        // A StatObjectAsync call per item would be needed to retrieve those — too expensive at scale.
-        // Callers should not rely on ContentType or Metadata being populated in list results.
         await foreach (var item in _client.ListObjectsEnumAsync(listArgs, ct))
         {
             if (!item.IsDir)
@@ -238,38 +334,4 @@ public class GarageStorageProvider : IStorageProvider
         return results.AsReadOnly();
     }
 
-    public async Task<string> GetPresignedUrlAsync(
-        string bucket,
-        string key,
-        TimeSpan expiry,
-        CancellationToken ct = default)
-    {
-        var presignedArgs = new PresignedGetObjectArgs()
-            .WithBucket(bucket)
-            .WithObject(key)
-            .WithExpiry((int)expiry.TotalSeconds);
-
-
-        var url = await _client.PresignedGetObjectAsync(presignedArgs);
-
-        _logger.LogInformation("Generated presigned URL for {Key} in bucket {Bucket} (expires in {Expiry})",
-            key, bucket, expiry);
-
-        return url;
-    }
-
-    public async Task EnsureBucketExistsAsync(
-        string bucket,
-        CancellationToken ct = default)
-    {
-        var existsArgs = new BucketExistsArgs().WithBucket(bucket);
-        var exists = await _client.BucketExistsAsync(existsArgs, ct);
-
-        if (!exists)
-        {
-            var makeArgs = new MakeBucketArgs().WithBucket(bucket);
-            await _client.MakeBucketAsync(makeArgs, ct);
-            _logger.LogInformation("Created bucket {Bucket}", bucket);
-        }
-    }
 }

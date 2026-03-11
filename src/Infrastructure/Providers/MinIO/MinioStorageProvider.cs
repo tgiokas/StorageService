@@ -189,6 +189,40 @@ public class MinioStorageProvider : IStorageProvider
         }
     }
 
+    public async Task EnsureBucketExistsAsync(
+        string bucket,
+        CancellationToken ct = default)
+    {
+        var existsArgs = new BucketExistsArgs().WithBucket(bucket);
+        var exists = await _client.BucketExistsAsync(existsArgs, ct);
+
+        if (!exists)
+        {
+            var makeArgs = new MakeBucketArgs().WithBucket(bucket);
+            await _client.MakeBucketAsync(makeArgs, ct);
+            _logger.LogInformation("Created bucket {Bucket}", bucket);
+        }
+    }
+
+    public async Task<string> GetPresignedUrlAsync(
+        string bucket,
+        string key,
+        TimeSpan expiry,
+        CancellationToken ct = default)
+    {
+        var presignedArgs = new PresignedGetObjectArgs()
+            .WithBucket(bucket)
+            .WithObject(key)
+            .WithExpiry((int)expiry.TotalSeconds);
+
+        var url = await _client.PresignedGetObjectAsync(presignedArgs);
+
+        _logger.LogInformation("Generated presigned URL for {Key} in bucket {Bucket} (expires in {Expiry})",
+            key, bucket, expiry);
+
+        return url;
+    }
+
     public async Task<IReadOnlyList<StorageObjectInfo>> ListAsync(
         string bucket,
         string? prefix = null,
@@ -229,37 +263,4 @@ public class MinioStorageProvider : IStorageProvider
         return results.AsReadOnly();
     }
 
-    public async Task<string> GetPresignedUrlAsync(
-        string bucket,
-        string key,
-        TimeSpan expiry,
-        CancellationToken ct = default)
-    {
-        var presignedArgs = new PresignedGetObjectArgs()
-            .WithBucket(bucket)
-            .WithObject(key)
-            .WithExpiry((int)expiry.TotalSeconds);
-
-        var url = await _client.PresignedGetObjectAsync(presignedArgs);
-
-        _logger.LogInformation("Generated presigned URL for {Key} in bucket {Bucket} (expires in {Expiry})",
-            key, bucket, expiry);
-
-        return url;
-    }
-
-    public async Task EnsureBucketExistsAsync(
-        string bucket,
-        CancellationToken ct = default)
-    {
-        var existsArgs = new BucketExistsArgs().WithBucket(bucket);
-        var exists = await _client.BucketExistsAsync(existsArgs, ct);
-
-        if (!exists)
-        {
-            var makeArgs = new MakeBucketArgs().WithBucket(bucket);
-            await _client.MakeBucketAsync(makeArgs, ct);
-            _logger.LogInformation("Created bucket {Bucket}", bucket);
-        }
-    }
 }
