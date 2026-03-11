@@ -11,17 +11,6 @@ public class MinioSettings
     public bool UseSsl { get; set; } = false;
 }
 
-public class SeaweedFsSettings
-{
-    public string MasterUrl { get; set; } = string.Empty;
-    public string FilerUrl { get; set; } = string.Empty;
-}
-
-public class AzureBlobSettings
-{
-    public string ConnectionString { get; set; } = string.Empty;
-}
-
 // Garage is an open-source, geo-distributed S3-compatible object store (https://garagehq.deuxfleurs.fr).
 // It exposes an S3-compatible API, so the MinIO SDK is used to communicate with it.
 public class GarageSettings
@@ -37,13 +26,24 @@ public class GarageSettings
     public string AdminToken { get; set; } = string.Empty;
 }
 
+public class SeaweedFsSettings
+{
+    public string MasterUrl { get; set; } = string.Empty;
+    public string FilerUrl { get; set; } = string.Empty;
+}
+
+public class AzureBlobSettings
+{
+    public string ConnectionString { get; set; } = string.Empty;
+}
+
 public class StorageSettings
 {
     public StorageProviderType Provider { get; set; } = StorageProviderType.MinIO;
     public MinioSettings MinIO { get; set; } = new();
+    public GarageSettings Garage { get; set; } = new();
     public SeaweedFsSettings SeaweedFS { get; set; } = new();
     public AzureBlobSettings AzureBlob { get; set; } = new();
-    public GarageSettings Garage { get; set; } = new();
 
     /// Binds StorageSettings from flat environment variables.
     public static StorageSettings BindFromConfiguration(IConfiguration configuration)

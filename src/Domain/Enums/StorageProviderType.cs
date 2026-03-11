@@ -3,7 +3,7 @@ namespace Storage.Domain.Enums;
 public enum StorageProviderType
 {
     MinIO = 1,
-    SeaweedFS = 2,
+    Garage = 2,
     AzureBlob = 3,
-    Garage = 4
+    SeaweedFS = 4       
 }
