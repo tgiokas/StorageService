@@ -146,10 +146,12 @@ public class GarageStorageProvider : IStorageProvider
         catch (Minio.Exceptions.ObjectNotFoundException)
         {
             _logger.LogWarning("Object not found during delete of {Key}", key);
+            throw new StorageObjectNotFoundException(bucket, key);
         }
         catch (Minio.Exceptions.BucketNotFoundException)
         {
             _logger.LogWarning("Bucket {Bucket} not found during delete of {Key}", bucket, key);
+            throw new StorageObjectNotFoundException(bucket, key);
         }
     }
 
