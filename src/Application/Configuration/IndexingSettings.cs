@@ -10,11 +10,10 @@ public class IndexingSettings
 
     /// Elasticsearch node URL for the document index.
     /// Env var: INDEXING_ELASTIC_URL
-    /// Example: http://elasticsearch:9200
     public string ElasticUrl { get; set; } = string.Empty;
 
     /// Elasticsearch index name for document metadata.
-    /// Env var: STORAGE_ELASTIC_INDEX (optional, defaults to "document-indexes")
+    /// Env var: STORAGE_ELASTIC_INDEX (defaults to "document-indexes")
     public string IndexName { get; set; } = "document-indexes";
 
     public static IndexingSettings BindFromConfiguration(IConfiguration configuration)

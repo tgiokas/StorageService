@@ -12,12 +12,12 @@ namespace Storage.Infrastructure.Indexing;
 
 public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 {
+    private const string IndexNotFoundExceptionType = "index_not_found_exception";
+    private const string ResourceAlreadyExistsExceptionType = "resource_already_exists_exception";
+
     private readonly ElasticsearchClient _elasticSearchClient;
     private readonly string _indexName;
     private readonly ILogger<ElasticDocumentIndexRepository> _logger;
-
-    private bool _indexEnsured = false;
-    private readonly SemaphoreSlim _indexLock = new(1, 1);
 
     public ElasticDocumentIndexRepository(
         IOptions<IndexingSettings> options,
@@ -38,12 +38,15 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
     public async Task<DocumentIndex?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        await EnsureIndexExistsAsync(ct);
-
         var response = await _elasticSearchClient.GetAsync<DocumentIndex>(id.ToString(), idx => idx.Index(_indexName), ct);
 
         if (!response.IsValidResponse || !response.Found)
+        {
+            if (response.DebugInformation?.Contains(IndexNotFoundExceptionType) == true)
+                _logger.LogWarning("Index {Index} does not exist yet. No documents to retrieve.", _indexName);
+
             return null;
+        }
 
         var doc = response.Source!;
         doc.Id = id;
@@ -52,8 +55,6 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
     public async Task<DocumentIndex?> GetByBucketAndKeyAsync(string bucket, string key, CancellationToken ct = default)
     {
-        await EnsureIndexExistsAsync(ct);
-
         var response = await _elasticSearchClient.SearchAsync<DocumentIndex>(s => s
             .Indices(_indexName)
             .Size(1)
@@ -68,7 +69,12 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
             ct);
 
         if (!response.IsValidResponse || response.Documents.Count == 0)
+        {
+            if (response.DebugInformation?.Contains(IndexNotFoundExceptionType) == true)
+                _logger.LogWarning("Index {Index} does not exist yet. No documents to retrieve.", _indexName);
+
             return null;
+        }
 
         var doc = response.Documents.First();
         if (response.Hits.Count > 0)
@@ -80,8 +86,6 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
     public async Task<List<DocumentIndex>> SearchAsync(DocumentIndexQuery query, CancellationToken ct = default)
     {
-        await EnsureIndexExistsAsync(ct);
-
         var from = (query.Page - 1) * query.PageSize;
 
         var response = await _elasticSearchClient.SearchAsync<DocumentIndex>(s =>
@@ -96,6 +100,12 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
         if (!response.IsValidResponse)
         {
+            if (response.DebugInformation?.Contains(IndexNotFoundExceptionType) == true)
+            {
+                _logger.LogWarning("Index {Index} does not exist yet. Returning empty results.", _indexName);
+                return new List<DocumentIndex>();
+            }
+
             _logger.LogError("Elasticsearch search failed: {Reason}", response.DebugInformation);
             throw new InvalidOperationException($"Elasticsearch search failed: {response.DebugInformation}");
         }
@@ -113,8 +123,6 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
     public async Task<int> CountAsync(DocumentIndexQuery query, CancellationToken ct = default)
     {
-        await EnsureIndexExistsAsync(ct);
-
         var response = await _elasticSearchClient.CountAsync<DocumentIndex>(c => c
             .Indices(_indexName)
             .Query(q => BuildQuery(q, query)),
@@ -122,6 +130,12 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
         if (!response.IsValidResponse)
         {
+            if (response.DebugInformation?.Contains(IndexNotFoundExceptionType) == true)
+            {
+                _logger.LogWarning("Index {Index} does not exist yet. Returning zero count.", _indexName);
+                return 0;
+            }
+
             _logger.LogError("Elasticsearch count failed: {Reason}", response.DebugInformation);
             throw new InvalidOperationException($"Elasticsearch count failed: {response.DebugInformation}");
         }
@@ -150,8 +164,6 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
     public async Task UpdateAsync(DocumentIndex document, CancellationToken ct = default)
     {
-        await EnsureIndexExistsAsync(ct);
-
         var response = await _elasticSearchClient.UpdateAsync<DocumentIndex, DocumentIndex>(
             _indexName,
             document.Id.ToString(),
@@ -160,6 +172,12 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
         if (!response.IsValidResponse)
         {
+            if (response.DebugInformation?.Contains(IndexNotFoundExceptionType) == true)
+            {
+                _logger.LogWarning("Index {Index} does not exist yet. Cannot update document {Id}.", _indexName, document.Id);
+                throw new InvalidOperationException($"Cannot update document — index '{_indexName}' does not exist yet.");
+            }
+
             _logger.LogError("Failed to update document {Id}: {Reason}", document.Id, response.DebugInformation);
             throw new InvalidOperationException($"Failed to update document: {response.DebugInformation}");
         }
@@ -169,20 +187,22 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
-        await EnsureIndexExistsAsync(ct);
-
         var response = await _elasticSearchClient.DeleteAsync(_indexName, id.ToString(), ct);
 
         if (!response.IsValidResponse)
         {
+            if (response.DebugInformation?.Contains(IndexNotFoundExceptionType) == true)
+            {
+                _logger.LogDebug("Index {Index} does not exist yet. Nothing to delete for {Id}.", _indexName, id);
+                return;
+            }
+
             _logger.LogWarning("Failed to delete document {Id}: {Reason}", id, response.DebugInformation);
         }
     }
 
     public async Task DeleteByBucketAndKeyAsync(string bucket, string key, CancellationToken ct = default)
     {
-        await EnsureIndexExistsAsync(ct);
-
         var response = await _elasticSearchClient.DeleteByQueryAsync<DocumentIndex>(d => d
             .Indices(_indexName)
             .Query(q => q
@@ -198,6 +218,12 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
         if (!response.IsValidResponse)
         {
+            if (response.DebugInformation?.Contains(IndexNotFoundExceptionType) == true)
+            {
+                _logger.LogDebug("Index {Index} does not exist yet. Nothing to delete for {Bucket}/{Key}.", _indexName, bucket, key);
+                return;
+            }
+
             _logger.LogWarning("Failed to delete document by bucket/key {Bucket}/{Key}: {Reason}", bucket, key, response.DebugInformation);
         }
         else
@@ -279,52 +305,42 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
     private async Task EnsureIndexExistsAsync(CancellationToken ct)
     {
-        if (_indexEnsured) return; // fast path — no lock needed after first successful creation
+        var existsResponse = await _elasticSearchClient.Indices.ExistsAsync(_indexName, ct);
 
-        await _indexLock.WaitAsync(ct);
-        try
+        if (existsResponse.Exists)
+            return;
+
+        var createResponse = await _elasticSearchClient.Indices.CreateAsync(_indexName, c => c
+            .Mappings(m => m
+                .Properties<DocumentIndex>(p => p
+                    .Keyword(k => k.Bucket)
+                    .Keyword(k => k.Key)
+                    .Keyword(k => k.FileName)
+                    .Keyword(k => k.ContentType)
+                    .LongNumber(l => l.Size)
+                    .Boolean(b => b.IsEncrypted)
+                    .Keyword(k => k.UploadedBy)
+                    .Date(d => d.UploadedAt)
+                    .Date(d => d.ModifiedAt)
+                    .Object(o => o.Tags)
+                )
+            ),
+            ct);
+
+        if (createResponse.IsValidResponse)
         {
-            if (_indexEnsured) return; // double-check: another thread may have just created it
-
-            var existsResponse = await _elasticSearchClient.Indices.ExistsAsync(_indexName, ct);
-
-            if (!existsResponse.Exists)
-            {
-                var createResponse = await _elasticSearchClient.Indices.CreateAsync(_indexName, c => c
-                    .Mappings(m => m
-                        .Properties<DocumentIndex>(p => p
-                            .Keyword(k => k.Bucket)
-                            .Keyword(k => k.Key)
-                            .Keyword(k => k.FileName)
-                            .Keyword(k => k.ContentType)
-                            .LongNumber(l => l.Size)
-                            .Boolean(b => b.IsEncrypted)
-                            .Keyword(k => k.UploadedBy)
-                            .Date(d => d.UploadedAt)
-                            .Date(d => d.ModifiedAt)
-                            .Object(o => o.Tags)
-                        )
-                    ),
-                    ct);
-
-                if (createResponse.IsValidResponse)
-                {
-                    _logger.LogInformation("Created Elasticsearch index: {Index}", _indexName);
-                }
-                else
-                {
-                    _logger.LogError("Failed to create Elasticsearch index {Index}: {Reason}",
-                        _indexName, createResponse.DebugInformation);
-                    throw new InvalidOperationException(
-                        $"Failed to create Elasticsearch index '{_indexName}': {createResponse.DebugInformation}");
-                }
-            }
-
-            _indexEnsured = true; // only reached if index exists or was successfully created
+            _logger.LogInformation("Created Elasticsearch index: {Index}", _indexName);
         }
-        finally
+        else if (createResponse.DebugInformation?.Contains(ResourceAlreadyExistsExceptionType) == true)
         {
-            _indexLock.Release();
+            _logger.LogDebug("Index {Index} was created concurrently by another caller.", _indexName);
+        }
+        else
+        {
+            _logger.LogError("Failed to create Elasticsearch index {Index}: {Reason}",
+                _indexName, createResponse.DebugInformation);
+            throw new InvalidOperationException(
+                $"Failed to create Elasticsearch index '{_indexName}': {createResponse.DebugInformation}");
         }
     }
 }

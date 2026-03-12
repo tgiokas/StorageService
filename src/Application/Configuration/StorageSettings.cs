@@ -11,15 +11,12 @@ public class MinioSettings
     public bool UseSsl { get; set; } = false;
 }
 
-// Garage is an open-source, geo-distributed S3-compatible object store (https://garagehq.deuxfleurs.fr).
-// It exposes an S3-compatible API, so the MinIO SDK is used to communicate with it.
 public class GarageSettings
 {
     public string Endpoint { get; set; } = string.Empty;
     public string AccessKey { get; set; } = string.Empty;
     public string SecretKey { get; set; } = string.Empty;
     public bool UseSsl { get; set; } = false;
-    // Garage requires an explicit region (default: "garage").
     public string Region { get; set; } = "garage";
     // Garage Admin API endpoint (default port 3901) / used for bucket creation and key permission grants.
     public string AdminEndpoint { get; set; } = string.Empty;
@@ -101,27 +98,6 @@ public class StorageSettings
         };
     }
 
-    private static SeaweedFsSettings BindSeaweedFsSettings(IConfiguration configuration)
-    {
-        return new SeaweedFsSettings
-        {
-            MasterUrl = configuration["SEAWEEDFS_MASTER_URL"]
-                ?? throw new ArgumentNullException(nameof(configuration), "SEAWEEDFS_MASTER_URL is not set."),
-
-            FilerUrl = configuration["SEAWEEDFS_FILER_URL"]
-                ?? throw new ArgumentNullException(nameof(configuration), "SEAWEEDFS_FILER_URL is not set.")
-        };
-    }
-
-    private static AzureBlobSettings BindAzureBlobSettings(IConfiguration configuration)
-    {
-        return new AzureBlobSettings
-        {
-            ConnectionString = configuration["AZURE_BLOB_CONNECTION_STRING"]
-                ?? throw new ArgumentNullException(nameof(configuration), "AZURE_BLOB_CONNECTION_STRING is not set.")
-        };
-    }
-
     private static GarageSettings BindGarageSettings(IConfiguration configuration)
     {
         return new GarageSettings
@@ -147,5 +123,26 @@ public class StorageSettings
             AdminToken = configuration["GARAGE_ADMIN_TOKEN"]
                 ?? throw new ArgumentNullException(nameof(configuration), "GARAGE_ADMIN_TOKEN is not set.")
         };
-    }    
+    }
+
+    private static SeaweedFsSettings BindSeaweedFsSettings(IConfiguration configuration)
+    {
+        return new SeaweedFsSettings
+        {
+            MasterUrl = configuration["SEAWEEDFS_MASTER_URL"]
+                ?? throw new ArgumentNullException(nameof(configuration), "SEAWEEDFS_MASTER_URL is not set."),
+
+            FilerUrl = configuration["SEAWEEDFS_FILER_URL"]
+                ?? throw new ArgumentNullException(nameof(configuration), "SEAWEEDFS_FILER_URL is not set.")
+        };
+    }
+
+    private static AzureBlobSettings BindAzureBlobSettings(IConfiguration configuration)
+    {
+        return new AzureBlobSettings
+        {
+            ConnectionString = configuration["AZURE_BLOB_CONNECTION_STRING"]
+                ?? throw new ArgumentNullException(nameof(configuration), "AZURE_BLOB_CONNECTION_STRING is not set.")
+        };
+    }  
 }
