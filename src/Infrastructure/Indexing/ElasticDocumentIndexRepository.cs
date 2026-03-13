@@ -121,28 +121,6 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
         return results;
     }
 
-    public async Task<int> CountAsync(DocumentIndexQuery query, CancellationToken ct = default)
-    {
-        var response = await _elasticSearchClient.CountAsync<DocumentIndex>(c => c
-            .Indices(_indexName)
-            .Query(q => BuildQuery(q, query)),
-            ct);
-
-        if (!response.IsValidResponse)
-        {
-            if (response.DebugInformation?.Contains(IndexNotFoundExceptionType) == true)
-            {
-                _logger.LogWarning("Index {Index} does not exist yet. Returning zero count.", _indexName);
-                return 0;
-            }
-
-            _logger.LogError("Elasticsearch count failed: {Reason}", response.DebugInformation);
-            throw new InvalidOperationException($"Elasticsearch count failed: {response.DebugInformation}");
-        }
-
-        return (int)response.Count;
-    }
-
     public async Task AddAsync(DocumentIndex document, CancellationToken ct = default)
     {
         await EnsureIndexExistsAsync(ct);
@@ -183,22 +161,6 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
         }
 
         _logger.LogDebug("Updated document {Id} in {Index}", document.Id, _indexName);
-    }
-
-    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
-    {
-        var response = await _elasticSearchClient.DeleteAsync(_indexName, id.ToString(), ct);
-
-        if (!response.IsValidResponse)
-        {
-            if (response.DebugInformation?.Contains(IndexNotFoundExceptionType) == true)
-            {
-                _logger.LogDebug("Index {Index} does not exist yet. Nothing to delete for {Id}.", _indexName, id);
-                return;
-            }
-
-            _logger.LogWarning("Failed to delete document {Id}: {Reason}", id, response.DebugInformation);
-        }
     }
 
     public async Task DeleteByBucketAndKeyAsync(string bucket, string key, CancellationToken ct = default)
