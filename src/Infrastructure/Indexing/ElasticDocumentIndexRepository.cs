@@ -123,13 +123,23 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
     public async Task AddAsync(DocumentIndex document, CancellationToken ct = default)
     {
-        await EnsureIndexExistsAsync(ct);
-
         var response = await _elasticSearchClient.IndexAsync(document, idx => idx
             .Index(_indexName)
             .Id(document.Id.ToString())
             .Refresh(Refresh.WaitFor),
             ct);
+
+        if (!response.IsValidResponse
+            && response.DebugInformation?.Contains(IndexNotFoundExceptionType) == true)
+        {
+            await CreateIndexAsync(ct);
+
+            response = await _elasticSearchClient.IndexAsync(document, idx => idx
+                .Index(_indexName)
+                .Id(document.Id.ToString())
+                .Refresh(Refresh.WaitFor),
+                ct);
+        }
 
         if (!response.IsValidResponse)
         {
@@ -265,13 +275,8 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
         });
     }
 
-    private async Task EnsureIndexExistsAsync(CancellationToken ct)
-    {
-        var existsResponse = await _elasticSearchClient.Indices.ExistsAsync(_indexName, ct);
-
-        if (existsResponse.Exists)
-            return;
-
+    private async Task CreateIndexAsync(CancellationToken ct)
+    {       
         var createResponse = await _elasticSearchClient.Indices.CreateAsync(_indexName, c => c
             .Mappings(m => m
                 .Properties<DocumentIndex>(p => p
