@@ -61,14 +61,14 @@ public class DocumentIndexService : IDocumentIndexService
                 SortDescending = request.SortDescending
             };
 
-            var results = await _repository.SearchAsync(query, ct);           
+            var (results, total) = await _repository.SearchAsync(query, ct);
 
             var pagedResult = new PagedResultDto<DocumentIndexDto>
             {
                 Results = results.Select(MapToDto).ToList(),
                 CurrentPage = request.Page,
                 PageSize = request.PageSize,
-                Total = results.Count
+                Total = total
             };
 
             return Result<PagedResultDto<DocumentIndexDto>>.Ok(pagedResult);
@@ -109,7 +109,7 @@ public class DocumentIndexService : IDocumentIndexService
         Key = doc.Key,
         FileName = doc.FileName,
         ContentType = doc.ContentType,
-        Size = doc.Size,        
+        Size = doc.Size,
         IsEncrypted = doc.IsEncrypted,
         UploadedBy = doc.UploadedBy,
         UploadedAt = doc.UploadedAt,

@@ -84,7 +84,7 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
         return doc;
     }
 
-    public async Task<List<DocumentIndex>> SearchAsync(DocumentIndexQuery query, CancellationToken ct = default)
+    public async Task<(List<DocumentIndex> Results, long Total)> SearchAsync(DocumentIndexQuery query, CancellationToken ct = default)
     {
         var from = (query.Page - 1) * query.PageSize;
 
@@ -103,7 +103,7 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
             if (response.DebugInformation?.Contains(IndexNotFoundExceptionType) == true)
             {
                 _logger.LogWarning("Index {Index} does not exist yet. Returning empty results.", _indexName);
-                return new List<DocumentIndex>();
+                return (new List<DocumentIndex>(), 0);
             }
 
             _logger.LogError("Elasticsearch search failed: {Reason}", response.DebugInformation);
@@ -118,7 +118,7 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
             results.Add(doc);
         }
 
-        return results;
+        return (results, response.Total);
     }
 
     public async Task AddAsync(DocumentIndex document, CancellationToken ct = default)
@@ -206,48 +206,49 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
     // --- Private helpers ---
 
-    private void BuildQuery(QueryDescriptor<DocumentIndex> q, DocumentIndexQuery query)
+    private static void BuildQuery(QueryDescriptor<DocumentIndex> q, DocumentIndexQuery query)
     {
-        q.Bool(b =>
+        var musts = new List<Action<QueryDescriptor<DocumentIndex>>>();
+
+        if (!string.IsNullOrWhiteSpace(query.Bucket))
+            musts.Add(m => m.Term(t => t.Field(f => f.Bucket).Value(query.Bucket)));
+
+        if (!string.IsNullOrWhiteSpace(query.KeyPrefix))
+            musts.Add(m => m.Prefix(p => p.Field(f => f.Key).Value(query.KeyPrefix)));
+
+        if (!string.IsNullOrWhiteSpace(query.FileName))
+            musts.Add(m => m.Wildcard(w => w.Field(f => f.FileName).Value($"*{query.FileName}*").CaseInsensitive(true)));
+
+        if (!string.IsNullOrWhiteSpace(query.ContentType))
+            musts.Add(m => m.Term(t => t.Field(f => f.ContentType).Value(query.ContentType)));
+
+        if (!string.IsNullOrWhiteSpace(query.UploadedBy))
+            musts.Add(m => m.Term(t => t.Field(f => f.UploadedBy).Value(query.UploadedBy)));
+
+        if (query.UploadedFrom.HasValue || query.UploadedTo.HasValue)
         {
-            var musts = new List<Action<QueryDescriptor<DocumentIndex>>>();
-
-            if (!string.IsNullOrWhiteSpace(query.Bucket))
-                musts.Add(m => m.Term(t => t.Field(f => f.Bucket).Value(query.Bucket)));
-
-            if (!string.IsNullOrWhiteSpace(query.KeyPrefix))
-                musts.Add(m => m.Prefix(p => p.Field(f => f.Key).Value(query.KeyPrefix)));
-
-            if (!string.IsNullOrWhiteSpace(query.FileName))
-                musts.Add(m => m.Wildcard(w => w.Field(f => f.FileName).Value($"*{query.FileName}*").CaseInsensitive(true)));
-
-            if (!string.IsNullOrWhiteSpace(query.ContentType))
-                musts.Add(m => m.Term(t => t.Field(f => f.ContentType).Value(query.ContentType)));
-
-            if (!string.IsNullOrWhiteSpace(query.UploadedBy))
-                musts.Add(m => m.Term(t => t.Field(f => f.UploadedBy).Value(query.UploadedBy)));
-
-            if (query.UploadedFrom.HasValue)
-                musts.Add(m => m.Range(r => r.Date(dr => dr.Field(f => f.UploadedAt).Gte(query.UploadedFrom.Value))));
-
-            if (query.UploadedTo.HasValue)
-                musts.Add(m => m.Range(r => r.Date(dr => dr.Field(f => f.UploadedAt).Lte(query.UploadedTo.Value))));
-
-            if (query.Tags != null && query.Tags.Count > 0)
+            musts.Add(m => m.Range(r => r.Date(dr =>
             {
-                foreach (var tag in query.Tags)
-                {
-                    var tagKey = tag.Key;
-                    var tagValue = tag.Value;
-                    musts.Add(m => m.Term(t => t.Field($"tags.{tagKey}").Value(tagValue)));
-                }
-            }
+                dr.Field(f => f.UploadedAt);
+                if (query.UploadedFrom.HasValue) dr.Gte(query.UploadedFrom.Value);
+                if (query.UploadedTo.HasValue) dr.Lte(query.UploadedTo.Value);
+            })));
+        }
 
-            if (musts.Count > 0)
-                b.Must(musts.ToArray());
-            else
-                b.Must(m => m.MatchAll());
-        });
+        if (query.Tags != null && query.Tags.Count > 0)
+        {
+            foreach (var tag in query.Tags)
+            {
+                var tagKey = tag.Key;
+                var tagValue = tag.Value;
+                musts.Add(m => m.Term(t => t.Field($"tags.{tagKey}").Value(tagValue)));
+            }
+        }
+
+        if (musts.Count > 0)
+            q.Bool(b => b.Must(musts.ToArray()));
+        else
+            q.MatchAll();
     }
 
     private static void ApplySorting(SearchRequestDescriptor<DocumentIndex> s, string sortBy, bool descending)
@@ -276,7 +277,7 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
     }
 
     private async Task CreateIndexAsync(CancellationToken ct)
-    {       
+    {
         var createResponse = await _elasticSearchClient.Indices.CreateAsync(_indexName, c => c
             .Mappings(m => m
                 .Properties<DocumentIndex>(p => p
