@@ -13,17 +13,12 @@ using Storage.Application.Configuration;
 
 namespace Storage.Infrastructure.Providers.AzureBlob;
 
-/// <summary>
 /// Azure Blob Storage provider.
-///
 /// Concept mapping:
 ///   - S3 "bucket"       - Azure Blob "container"
 ///   - S3 "key"          - Azure Blob "blob name"
-///   - S3 presigned URL  - Azure SAS (Shared Access Signature) URI
-///
 /// Custom metadata is stored via <see cref="BlobHttpHeaders"/> and <see cref="BlobUploadOptions.Metadata"/>.
 /// Azure normalises user-metadata keys to lowercase; callers should not rely on casing.
-/// </summary>
 public class AzureBlobStorageProvider : IStorageProvider
 {
     private readonly BlobServiceClient _serviceClient;

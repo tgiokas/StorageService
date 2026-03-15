@@ -16,13 +16,13 @@ using Storage.Application.Configuration;
 
 namespace Storage.Infrastructure.Providers.Garage;
 
-// Garage (https://garagehq.deuxfleurs.fr) is an open-source, geo-distributed S3-compatible
-// object store written in Rust. It exposes a standard S3 API, so the MinIO SDK is used to
-// communicate with it — the key differences from MinIO are:
-//   - An explicit region must be set (any non-empty string; conventionally "garage")
-//   - Garage does not support object locking or some advanced S3 features
-//   - Bucket creation must go through the Admin API (port 3901), not the S3 API
-//   - After creating a bucket via Admin API the key must be explicitly granted read/write access
+/// Garage (https://garagehq.deuxfleurs.fr) is an open-source, geo-distributed S3-compatible
+/// object store written in Rust. It exposes a standard S3 API, so the MinIO SDK is used to
+/// communicate with it — the key differences from MinIO are:
+///   - An explicit region must be set (any non-empty string; conventionally "garage")
+///   - Garage does not support object locking or some advanced S3 features
+///   - Bucket creation must go through the Admin API (port 3901), not the S3 API
+///   - After creating a bucket via Admin API the key must be explicitly granted read/write access
 public class GarageStorageProvider : IStorageProvider
 {
     private readonly IMinioClient _client;

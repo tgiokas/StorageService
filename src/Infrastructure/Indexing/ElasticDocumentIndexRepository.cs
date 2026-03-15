@@ -204,8 +204,6 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
         }
     }
 
-    // --- Private helpers ---
-
     private static void BuildQuery(QueryDescriptor<DocumentIndex> q, DocumentIndexQuery query)
     {
         var musts = new List<Action<QueryDescriptor<DocumentIndex>>>();
