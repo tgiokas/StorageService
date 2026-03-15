@@ -274,62 +274,6 @@ public class GarageStorageProvider : IStorageProvider
         }
 
         _logger.LogInformation("Key '{AccessKey}' has read/write access to Garage bucket '{Bucket}'", _settings.AccessKey, bucket);
-    }
-
-    public async Task<string> GetPresignedUrlAsync(
-        string bucket,
-        string key,
-        TimeSpan expiry,
-        CancellationToken ct = default)
-    {
-        var presignedArgs = new PresignedGetObjectArgs()
-            .WithBucket(bucket)
-            .WithObject(key)
-            .WithExpiry((int)expiry.TotalSeconds);
-
-        var url = await _client.PresignedGetObjectAsync(presignedArgs);
-
-        _logger.LogInformation("Generated presigned URL for {Key} in bucket {Bucket} (expires in {Expiry})",
-            key, bucket, expiry);
-
-        return url;
-    }
-
-    public async Task<IReadOnlyList<StorageObjectInfo>> ListAsync(
-        string bucket,
-        string? prefix = null,
-        CancellationToken ct = default)
-    {
-        var results = new List<StorageObjectInfo>();
-
-        var listArgs = new ListObjectsArgs()
-            .WithBucket(bucket)
-            .WithRecursive(true);
-
-        if (!string.IsNullOrEmpty(prefix))
-            listArgs = listArgs.WithPrefix(prefix);
-
-        await foreach (var item in _client.ListObjectsEnumAsync(listArgs, ct))
-        {
-            if (!item.IsDir)
-            {
-                results.Add(new StorageObjectInfo
-                {
-                    Bucket = bucket,
-                    Key = item.Key,
-                    Size = (long)item.Size,
-                    ContentType = string.Empty,
-                    ETag = item.ETag,
-                    LastModified = item.LastModifiedDateTime ?? DateTime.MinValue,
-                    Metadata = new Dictionary<string, string>()
-                });
-            }
-        }
-
-        _logger.LogInformation("Listed {Count} objects in bucket {Bucket} with prefix '{Prefix}'",
-            results.Count, bucket, prefix);
-
-        return results.AsReadOnly();
-    }
+    }   
 
 }

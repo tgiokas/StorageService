@@ -94,12 +94,6 @@ public class EncryptedStorageProviderDecorator : IStorageProvider
     public Task<bool> ExistsAsync(string bucket, string key, CancellationToken ct = default)
         => _inner.ExistsAsync(bucket, key, ct);
 
-    public Task<IReadOnlyList<StorageObjectInfo>> ListAsync(string bucket, string? prefix = null, CancellationToken ct = default)
-        => _inner.ListAsync(bucket, prefix, ct);
-
-    public Task<string> GetPresignedUrlAsync(string bucket, string key, TimeSpan expiry, CancellationToken ct = default)
-        => _inner.GetPresignedUrlAsync(bucket, key, expiry, ct);
-
     public Task EnsureBucketExistsAsync(string bucket, CancellationToken ct = default)
         => _inner.EnsureBucketExistsAsync(bucket, ct);
 }

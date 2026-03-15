@@ -92,11 +92,11 @@ public class MinioStorageProvider : IStorageProvider
 
             await _client.GetObjectAsync(getArgs, ct);
         }
-        catch (Minio.Exceptions.ObjectNotFoundException)
+        catch (ObjectNotFoundException)
         {
             throw new StorageObjectNotFoundException(bucket, key);
         }
-        catch (Minio.Exceptions.BucketNotFoundException)
+        catch (BucketNotFoundException)
         {
             throw new StorageObjectNotFoundException(bucket, key);
         }
@@ -195,65 +195,6 @@ public class MinioStorageProvider : IStorageProvider
             await _client.MakeBucketAsync(makeArgs, ct);
             _logger.LogInformation("Created bucket {Bucket}", bucket);
         }
-    }
-
-    public async Task<string> GetPresignedUrlAsync(
-        string bucket,
-        string key,
-        TimeSpan expiry,
-        CancellationToken ct = default)
-    {
-        var presignedArgs = new PresignedGetObjectArgs()
-            .WithBucket(bucket)
-            .WithObject(key)
-            .WithExpiry((int)expiry.TotalSeconds);
-
-        var url = await _client.PresignedGetObjectAsync(presignedArgs);
-
-        _logger.LogInformation("Generated presigned URL for {Key} in bucket {Bucket} (expires in {Expiry})",
-            key, bucket, expiry);
-
-        return url;
-    }
-
-    public async Task<IReadOnlyList<StorageObjectInfo>> ListAsync(
-        string bucket,
-        string? prefix = null,
-        CancellationToken ct = default)
-    {
-        var results = new List<StorageObjectInfo>();
-
-        var listArgs = new ListObjectsArgs()
-            .WithBucket(bucket)
-            .WithRecursive(true);
-
-        if (!string.IsNullOrWhiteSpace(prefix))
-            listArgs = listArgs.WithPrefix(prefix);
-
-        // Note: the MinIO list API does not return ContentType or Metadata per object.
-        // A StatObjectAsync call per item would be needed to retrieve those — too expensive at scale.
-        // Callers should not rely on ContentType or Metadata being populated in list results.
-        await foreach (var item in _client.ListObjectsEnumAsync(listArgs, ct))
-        {
-            if (!item.IsDir)
-            {
-                results.Add(new StorageObjectInfo
-                {
-                    Bucket = bucket,
-                    Key = item.Key,
-                    Size = (long)item.Size,
-                    ContentType = string.Empty,
-                    ETag = item.ETag,
-                    LastModified = item.LastModifiedDateTime ?? DateTime.MinValue,
-                    Metadata = new Dictionary<string, string>()
-                });
-            }
-        }
-
-        _logger.LogInformation("Listed {Count} objects in bucket {Bucket} with prefix '{Prefix}'",
-            results.Count, bucket, prefix);
-
-        return results.AsReadOnly();
-    }
+    }    
 
 }

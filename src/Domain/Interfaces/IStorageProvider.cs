@@ -32,17 +32,6 @@ public interface IStorageProvider
         string key,
         CancellationToken ct = default);
 
-    Task<IReadOnlyList<StorageObjectInfo>> ListAsync(
-        string bucket,
-        string? prefix = null,
-        CancellationToken ct = default);
-
-    Task<string> GetPresignedUrlAsync(
-        string bucket,
-        string key,
-        TimeSpan expiry,
-        CancellationToken ct = default);
-
     Task EnsureBucketExistsAsync(
         string bucket,
         CancellationToken ct = default);

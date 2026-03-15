@@ -1,7 +1,9 @@
+using Microsoft.Extensions.Configuration;
 using Serilog;
 
 using Storage.Api.Middlewares;
 using Storage.Application;
+using Storage.Application.Configuration;
 using Storage.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,13 +16,14 @@ Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
     .CreateLogger();
-
 Log.Information("Configuration is starting...");
 
 builder.Host.UseSerilog();
 
 // Add Application services
-builder.Services.AddApplicationServices();
+var indexingSettings = IndexingSettings.BindFromConfiguration(builder.Configuration);
+builder.Services.AddApplicationServices(indexingEnabled: indexingSettings.Enabled);
+//builder.Services.AddApplicationServices();
 
 // Add Infrastructure (provider selection + encryption + indexing)
 builder.Services.AddInfrastructureServices(builder.Configuration);

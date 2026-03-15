@@ -7,10 +7,14 @@ namespace Storage.Application;
 
 public static class ApplicationServiceRegistration
 {
-    public static IServiceCollection AddApplicationServices(this IServiceCollection services)
+    public static IServiceCollection AddApplicationServices(this IServiceCollection services, bool indexingEnabled)
     {
         services.AddScoped<IDocumentStorageService, DocumentStorageService>();
-        services.AddScoped<IDocumentIndexService, DocumentIndexService>();
+
+        if (indexingEnabled)
+        {
+            services.AddScoped<IDocumentIndexService, DocumentIndexService>();
+        }
 
         return services;
     }
