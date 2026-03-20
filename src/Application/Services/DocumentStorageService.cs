@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Storage.Application.Configuration;
@@ -19,6 +19,8 @@ public class DocumentStorageService : IDocumentStorageService
     private readonly IErrorCatalog _errors;
     private readonly ILogger<DocumentStorageService> _logger;
     private readonly IDocumentIndexRepository? _indexRepository;
+
+    private const int MaxBatchMoveItems = 100;
 
     public DocumentStorageService(
         IStorageProvider storageProvider,
@@ -208,6 +210,47 @@ public class DocumentStorageService : IDocumentStorageService
             return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.MetadataRetrievalFailed);
         }
     }
+        
+    public async Task<Result<DocumentBatchMoveResultDto>> MoveAsync(DocumentBatchMoveDto request, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.SourceBucket))
+            return _errors.Fail<DocumentBatchMoveResultDto>(ErrorCodes.STORAGE.InvalidBucket);
+
+        if (string.IsNullOrWhiteSpace(request.DestinationBucket))
+            return _errors.Fail<DocumentBatchMoveResultDto>(ErrorCodes.STORAGE.InvalidBucket);
+
+        if (request.Items is null || request.Items.Count == 0)
+            return _errors.Fail<DocumentBatchMoveResultDto>(ErrorCodes.STORAGE.InvalidKey);
+
+        if (request.Items.Count > MaxBatchMoveItems)
+            return _errors.Fail<DocumentBatchMoveResultDto>(ErrorCodes.STORAGE.BatchLimitExceeded);
+
+        var resultDto = new DocumentBatchMoveResultDto
+        {
+            TotalRequested = request.Items.Count
+        };
+
+        foreach (var item in request.Items)
+        {
+            var itemResult = await MoveSingleAsync(
+                request.SourceBucket, item.SourceKey,
+                request.DestinationBucket, item.DestinationKey,
+                ct);
+
+            resultDto.Results.Add(itemResult);
+
+            if (itemResult.Success)
+                resultDto.Succeeded++;
+            else
+                resultDto.Failed++;
+        }
+
+        var message = resultDto.Failed == 0
+            ? "All documents moved successfully."
+            : $"{resultDto.Succeeded} of {resultDto.TotalRequested} documents moved successfully.";
+
+        return Result<DocumentBatchMoveResultDto>.Ok(resultDto, message);
+    }
 
     private async Task CreateIndexEntryAsync(DocumentUploadDto request, StorageObjectInfo metadata, CancellationToken ct)
     {
@@ -228,6 +271,138 @@ public class DocumentStorageService : IDocumentStorageService
         await _indexRepository!.AddAsync(indexEntry, ct);
 
         _logger.LogInformation("Created index entry for {Bucket}/{Key}", metadata.Bucket, metadata.Key);
+    }
+
+    private async Task<DocumentItemMoveResultDto> MoveSingleAsync(
+        string sourceBucket, string sourceKey,
+        string destinationBucket, string destinationKey,
+        CancellationToken ct)
+    {
+        var result = new DocumentItemMoveResultDto
+        {
+            SourceKey = sourceKey,
+            DestinationKey = destinationKey
+        };
+
+        if (string.IsNullOrWhiteSpace(sourceKey) || string.IsNullOrWhiteSpace(destinationKey))
+        {
+            result.Error = "Source key and destination key are required.";
+            result.ErrorCode = ErrorCodes.STORAGE.InvalidKey;
+            return result;
+        }
+
+        // Same bucket + same key = no-op
+        if (sourceBucket == destinationBucket && sourceKey == destinationKey)
+        {
+            result.Success = true;
+            return result;
+        }
+
+        try
+        {
+            // 1. Verify source exists
+            var sourceExists = await _storageProvider.ExistsAsync(sourceBucket, sourceKey, ct);
+            if (!sourceExists)
+            {
+                result.Error = $"Source object '{sourceBucket}/{sourceKey}' not found.";
+                result.ErrorCode = ErrorCodes.STORAGE.ObjectNotFound;
+                return result;
+            }
+
+            // 2. Verify destination does not already exist (duplicate-rejection)
+            var destinationExists = await _storageProvider.ExistsAsync(destinationBucket, destinationKey, ct);
+            if (destinationExists)
+            {
+                result.Error = $"Destination object '{destinationBucket}/{destinationKey}' already exists.";
+                result.ErrorCode = ErrorCodes.STORAGE.ObjectAlreadyExists;
+                return result;
+            }
+
+            // 3. Download source (goes through encryption decorator — returns decrypted stream)
+            var sourceMetadata = await _storageProvider.GetMetadataAsync(sourceBucket, sourceKey, ct);
+            using var sourceStream = await _storageProvider.DownloadAsync(sourceBucket, sourceKey, ct);
+
+            // 4. Upload to destination (re-encrypts transparently via decorator)
+            await _storageProvider.UploadAsync(
+                destinationBucket,
+                destinationKey,
+                sourceStream,
+                sourceMetadata.ContentType,
+                sourceMetadata.Metadata.Count > 0 ? new Dictionary<string, string>(sourceMetadata.Metadata) : null,
+                ct);
+
+            // 5. Update Elasticsearch index entry if indexing is enabled
+            if (IsIndexingEnabled)
+            {
+                try
+                {
+                    var indexEntry = await _indexRepository!.GetByBucketAndKeyAsync(sourceBucket, sourceKey, ct);
+                    if (indexEntry is not null)
+                    {
+                        indexEntry.Bucket = destinationBucket;
+                        indexEntry.Key = destinationKey;
+                        indexEntry.FileName = Path.GetFileName(destinationKey);
+                        indexEntry.ModifiedAt = DateTime.UtcNow;
+                        await _indexRepository.UpdateAsync(indexEntry, ct);
+                    }
+                }
+                catch (Exception indexEx)
+                {
+                    // Index update failed — roll back the destination copy
+                    _logger.LogError(indexEx,
+                        "Index update failed during move of {SourceBucket}/{SourceKey} → {DestBucket}/{DestKey}. Rolling back destination copy.",
+                        sourceBucket, sourceKey, destinationBucket, destinationKey);
+
+                    await RollbackDestinationAsync(destinationBucket, destinationKey, ct);
+
+                    result.Error = "Move failed: could not update document index.";
+                    result.ErrorCode = ErrorCodes.STORAGE.MoveFailed;
+                    return result;
+                }
+            }
+
+            // 6. Delete the source object
+            try
+            {
+                await _storageProvider.DeleteAsync(sourceBucket, sourceKey, ct);
+            }
+            catch (Exception deleteEx)
+            {
+                // Source delete failed — object now exists in both locations, index points to destination.
+                // Log as warning
+                _logger.LogWarning(deleteEx,
+                    "Source deletion failed after successful move of {SourceBucket}/{SourceKey} → {DestBucket}/{DestKey}. Source object is now orphaned.",
+                    sourceBucket, sourceKey, destinationBucket, destinationKey);
+            }
+
+            result.Success = true;
+            _logger.LogInformation("Moved document {SourceBucket}/{SourceKey} → {DestBucket}/{DestKey}",
+                sourceBucket, sourceKey, destinationBucket, destinationKey);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to move document {SourceBucket}/{SourceKey} → {DestBucket}/{DestKey}",
+                sourceBucket, sourceKey, destinationBucket, destinationKey);
+
+            result.Error = "An unexpected error occurred during move.";
+            result.ErrorCode = ErrorCodes.STORAGE.MoveFailed;
+            return result;
+        }
+    }
+
+    private async Task RollbackDestinationAsync(string bucket, string key, CancellationToken ct)
+    {
+        try
+        {
+            await _storageProvider.DeleteAsync(bucket, key, ct);
+            _logger.LogInformation("Rolled back destination copy {Bucket}/{Key}", bucket, key);
+        }
+        catch (Exception rollbackEx)
+        {
+            _logger.LogError(rollbackEx, "Rollback of destination copy also failed for {Bucket}/{Key}", bucket, key);
+        }
     }
 
     private static StorageObjectDto MapToDto(StorageObjectInfo info) => new()

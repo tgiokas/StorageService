@@ -8,4 +8,5 @@ public interface IDocumentStorageService
     Task<Result<DocumentDownloadDto>> DownloadAsync(string bucket, string key, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string bucket, string key, CancellationToken ct = default);
     Task<Result<StorageObjectDto>> GetMetadataAsync(string bucket, string key, CancellationToken ct = default);
+    Task<Result<DocumentBatchMoveResultDto>> MoveAsync(DocumentBatchMoveDto request, CancellationToken ct = default);
 }

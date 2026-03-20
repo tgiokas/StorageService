@@ -86,7 +86,7 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
     public async Task<(List<DocumentIndex> Results, long Total)> SearchAsync(DocumentIndexQuery query, CancellationToken ct = default)
     {
-        var from = (query.Page - 1) * query.PageSize;
+        var from = (query.PageNumber - 1) * query.PageSize;
 
         var response = await _elasticSearchClient.SearchAsync<DocumentIndex>(s =>
         {

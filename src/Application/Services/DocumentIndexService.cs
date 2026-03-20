@@ -55,7 +55,7 @@ public class DocumentIndexService : IDocumentIndexService
                 UploadedFrom = request.UploadedFrom,
                 UploadedTo = request.UploadedTo,
                 Tags = request.Tags,
-                Page = request.Page,
+                PageNumber = request.PageNumber,
                 PageSize = request.PageSize,
                 SortBy = request.SortBy,
                 SortDescending = request.SortDescending
@@ -66,9 +66,9 @@ public class DocumentIndexService : IDocumentIndexService
             var pagedResult = new PagedResultDto<DocumentIndexDto>
             {
                 Results = results.Select(MapToDto).ToList(),
-                CurrentPage = request.Page,
+                CurrentPage = request.PageNumber,
                 PageSize = request.PageSize,
-                Total = total
+                TotalCount = total
             };
 
             return Result<PagedResultDto<DocumentIndexDto>>.Ok(pagedResult);

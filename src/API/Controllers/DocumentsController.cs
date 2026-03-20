@@ -28,7 +28,7 @@ public class DocumentsController : ControllerBase
     {
         if (file == null || file.Length == 0)
         {
-            return BadRequest(Result<string>.Fail("No file provided.", "STR-013"));
+            return BadRequest(Result<string>.Fail("No file provided.", "STR-024"));
         }
 
         var objectKey = key ?? file.FileName;
@@ -102,6 +102,21 @@ public class DocumentsController : ControllerBase
     public async Task<IActionResult> GetMetadata(string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
         var result = await _storageService.GetMetadataAsync(bucket, key, ct);
+
+        if (!result.Success)
+        {
+            return Accepted(result);
+        }
+
+        return Ok(result);
+    }
+
+    /// Move documents from one bucket/key to another bucket/key.
+    /// Supports batch operations up to 100 items.
+    [HttpPost("move")]
+    public async Task<IActionResult> Move(DocumentBatchMoveDto request, CancellationToken ct = default)
+    {
+        var result = await _storageService.MoveAsync(request, ct);
 
         if (!result.Success)
         {

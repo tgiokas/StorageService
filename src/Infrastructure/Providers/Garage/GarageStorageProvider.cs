@@ -35,7 +35,7 @@ public class GarageStorageProvider : IStorageProvider
         _logger = logger;
         _settings = options.Value.Garage;
 
-        // ── S3 client (MinIO SDK) ────────────────────────────────────────────
+        // S3 client (MinIO SDK)
         var builder = new MinioClient()
             .WithEndpoint(_settings.Endpoint)
             .WithCredentials(_settings.AccessKey, _settings.SecretKey)
@@ -46,7 +46,7 @@ public class GarageStorageProvider : IStorageProvider
 
         _client = builder.Build();
 
-        // ── Admin HTTP client ────────────────────────────────────────────────
+        // Admin HTTP client
         _adminHttp = new HttpClient { BaseAddress = new Uri(_settings.AdminEndpoint) };
         _adminHttp.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", _settings.AdminToken);

@@ -28,5 +28,9 @@ public static class ErrorCodes
         public const string IndexUpdateFailed = "STR-021";
         public const string IndexDeleteFailed = "STR-022";
         public const string ObjectAlreadyExists = "STR-023";
+        public const string NoFileProvided = "STR-024";
+        public const string InvalidTags = "STR-025";
+        public const string MoveFailed = "STR-026";
+        public const string BatchLimitExceeded = "STR-027";
     }
 }

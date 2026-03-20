@@ -12,7 +12,7 @@ public class DocumentSearchDto
     public Dictionary<string, string>? Tags { get; set; }
 
     // Pagination
-    public int Page { get; set; } = 1;
+    public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 50;
 
     // Sorting
