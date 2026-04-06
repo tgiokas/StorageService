@@ -9,11 +9,11 @@ public static class ApplicationServiceRegistration
 {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services, bool indexingEnabled)
     {
-        services.AddScoped<IDocumentStorageService, DocumentStorageService>();
+        services.AddSingleton<IDocumentStorageService, DocumentStorageService>();
 
         if (indexingEnabled)
         {
-            services.AddScoped<IDocumentIndexService, DocumentIndexService>();
+            services.AddSingleton<IDocumentIndexService, DocumentIndexService>();
         }
 
         return services;

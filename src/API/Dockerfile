@@ -14,7 +14,7 @@ COPY ["src/Domain/Storage.Domain.csproj", "src/Domain/"]
 COPY ["src/Infrastructure/Storage.Infrastructure.csproj", "src/Infrastructure/"]
 RUN dotnet restore "./src/API/Storage.Api.csproj"
 COPY . .
-WORKDIR "/src/API"
+WORKDIR "src/API"
 RUN dotnet build "./Storage.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage
@@ -28,7 +28,7 @@ WORKDIR /app
 COPY --from=publish /app/publish .
 
 # --- minimal additions: copy the error catalog and set its path ---
-COPY ../../error-codes/errors.json /app/errors.json
+COPY /error-codes/errors.json /app/errors.json
 # ------------------------------------------------------------------
 
 ENTRYPOINT ["dotnet", "Storage.Api.dll"]

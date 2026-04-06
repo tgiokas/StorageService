@@ -15,10 +15,10 @@ public class DocumentIndexController : ControllerBase
     {
         _indexService = indexService;
     }
-    
+
     /// Search the document index with filters, pagination, and sorting.    
     [HttpPost("search")]
-    public async Task<IActionResult> Search([FromBody] DocumentSearchDto request, CancellationToken ct = default)
+    public async Task<IActionResult> Search(DocumentSearchDto request, CancellationToken ct = default)
     {
         var result = await _indexService.SearchAsync(request, ct);
 
@@ -29,10 +29,10 @@ public class DocumentIndexController : ControllerBase
 
         return Ok(result);
     }
-    
+
     /// Get a document index entry by bucket and key.    
-    [HttpGet("{bucket}/lookup")]
-    public async Task<IActionResult> GetByBucketAndKey(string bucket, [FromQuery] string key, CancellationToken ct = default)
+    [HttpGet("lookup")]
+    public async Task<IActionResult> GetByBucketAndKey([FromQuery] string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
         var result = await _indexService.GetByBucketAndKeyAsync(bucket, key, ct);
 
@@ -43,12 +43,12 @@ public class DocumentIndexController : ControllerBase
 
         return Ok(result);
     }
-    
+
     /// Update tags on a document index entry.    
-    [HttpPut("{id:guid}/tags")]
-    public async Task<IActionResult> UpdateTags(Guid id, [FromBody] Dictionary<string, string> tags, CancellationToken ct = default)
+    [HttpPost("tags")]
+    public async Task<IActionResult> UpdateTags(TagsUpdateDto request, CancellationToken ct = default)
     {
-        var result = await _indexService.UpdateTagsAsync(id, tags, ct);
+        var result = await _indexService.UpdateTagsAsync(request.Id, request.Tags, ct);
 
         if (!result.Success)
         {

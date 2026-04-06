@@ -23,7 +23,6 @@ builder.Host.UseSerilog();
 // Add Application services
 var indexingSettings = IndexingSettings.BindFromConfiguration(builder.Configuration);
 builder.Services.AddApplicationServices(indexingEnabled: indexingSettings.Enabled);
-//builder.Services.AddApplicationServices();
 
 // Add Infrastructure (provider selection + encryption + indexing)
 builder.Services.AddInfrastructureServices(builder.Configuration);

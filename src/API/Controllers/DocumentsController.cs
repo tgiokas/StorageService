@@ -18,13 +18,15 @@ public class DocumentsController : ControllerBase
     }
 
     /// Upload a document to a bucket.
-    /// Tags are optional JSON key-value pairs for indexing (e.g. ?tags={"department":"hr","year":"2025"})    
-    [HttpPost("{bucket}/upload")]
+    /// Tags are optional JSON key-value pairs for indexing (e.g. ?metadata={"department":"hr","year":"2025"})    
+    [HttpPost("upload")]
     [RequestSizeLimit(524_288_000)] // 500 MB
-    public async Task<IActionResult> Upload(IFormFile file, string bucket, [FromQuery] string? key = null,
-        [FromQuery] string? metadata = null,
-        [FromQuery] string? uploadedBy = null,        
-        CancellationToken ct = default)
+    public async Task<IActionResult> Upload(
+        IFormFile file, 
+        [FromForm] string bucket,
+        [FromForm] string? key = null,
+        [FromForm] string? metadata = null,
+        [FromForm] string? uploadedBy = null, CancellationToken ct = default)
     {
         if (file == null || file.Length == 0)
         {
@@ -69,8 +71,8 @@ public class DocumentsController : ControllerBase
     }
 
     /// Download a document from a bucket.    
-    [HttpGet("{bucket}/download")]
-    public async Task<IActionResult> Download(string bucket, [FromQuery] string key, CancellationToken ct = default)
+    [HttpGet("download")]
+    public async Task<IActionResult> Download([FromQuery] string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
         var result = await _storageService.DownloadAsync(bucket, key, ct);
 
@@ -84,10 +86,10 @@ public class DocumentsController : ControllerBase
     }
 
     /// Delete a document from a bucket.    
-    [HttpDelete("{bucket}")]
-    public async Task<IActionResult> Delete(string bucket, [FromQuery] string key, CancellationToken ct = default)
+    [HttpPost("delete")]
+    public async Task<IActionResult> Delete(DocumentLocatorDto locator, CancellationToken ct = default)
     {
-        var result = await _storageService.DeleteAsync(bucket, key, ct);
+        var result = await _storageService.DeleteAsync(locator.Bucket, locator.Key, ct);
 
         if (!result.Success)
         {
@@ -98,8 +100,8 @@ public class DocumentsController : ControllerBase
     }
 
     /// Get metadata for a document.    
-    [HttpGet("{bucket}/metadata")]
-    public async Task<IActionResult> GetMetadata(string bucket, [FromQuery] string key, CancellationToken ct = default)
+    [HttpGet("metadata")]
+    public async Task<IActionResult> GetMetadata([FromQuery] string bucket, [FromQuery] string key, CancellationToken ct = default)
     {
         var result = await _storageService.GetMetadataAsync(bucket, key, ct);
 
@@ -125,5 +127,4 @@ public class DocumentsController : ControllerBase
 
         return Ok(result);
     }
-
 }
