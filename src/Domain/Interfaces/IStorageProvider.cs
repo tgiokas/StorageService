@@ -4,6 +4,11 @@ namespace Storage.Domain.Interfaces;
 
 public interface IStorageProvider
 {
+    Task<IReadOnlyList<StorageObjectInfo>> ListObjectsAsync(
+        string bucket,
+        string? prefix = null,
+        CancellationToken ct = default);
+
     Task<StorageObjectInfo> UploadAsync(
         string bucket,
         string key,

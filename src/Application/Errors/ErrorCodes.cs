@@ -32,5 +32,6 @@ public static class ErrorCodes
         public const string InvalidTags = "STR-025";
         public const string MoveFailed = "STR-026";
         public const string BatchLimitExceeded = "STR-027";
+        public const string SearchTextRequired = "STR-028";
     }
 }

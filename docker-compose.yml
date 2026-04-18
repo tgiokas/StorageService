@@ -1,30 +1,9 @@
 services:
 
-  # storage-db:
-  #   image: postgres:18.1
-  #   container_name: storage-db
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     POSTGRES_USER: ${STORAGE_DB_POSTGRES_USER}
-  #     POSTGRES_PASSWORD: ${STORAGE_DB_POSTGRES_PASSWORD}
-  #     POSTGRES_DB: ${STORAGE_DB_POSTGRES_DB}
-  #   #dev only
-  #   ports:
-  #     - "5436:5432"
-  #   volumes:
-  #     - storage-db-data:/var/lib/postgresql/data
-  #   networks:
-  #     - archium-network
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U ${STORAGE_DB_POSTGRES_USER:-postgres} -d ${STORAGE_DB_POSTGRES_DB:-postgres}"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #     start_period: 30s
-
   minio:
-    image: minio/minio:latest
+    image: chainguard/minio:latest
+    # Run as root so existing volume (created by previous root MinIO) is writable; no data loss
+    user: "0:0"
     container_name: minio
     env_file:
       - .env
@@ -32,77 +11,72 @@ services:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     command: server /data --console-address ":9001"
+    #production only
+    #command: server /data
     ports:
       - "9000:9000"   # API
       - "9001:9001"   # Console UI
     networks:
-      - archium-network
+      - storage-network
     volumes:
       - ./volumes/minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
-  garage:
-    image: dxflrs/garage:v2.2.0
-    container_name: garage
-    env_file:
-      - .env      
-    ports:
-      - "3900:3900"   # S3 API
-      - "3901:3901"   # Admin API
-    volumes:
-      - ./volumes/garage_data:/var/lib/garage/data
-      - ./volumes/garage_meta:/var/lib/garage/meta
-      - ./garage.toml:/etc/garage.toml:ro
-    networks:
-      - archium-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3900/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+  # garage:
+  #   image: dxflrs/garage:v2.2.0
+  #   container_name: garage
+  #   env_file:
+  #     - .env      
+  #   ports:
+  #     - "3900:3900"   # S3 API
+  #     - "3901:3901"   # Admin API
+  #   volumes:
+  #     - ./volumes/garage_data:/var/lib/garage/data
+  #     - ./volumes/garage_meta:/var/lib/garage/meta
+  #     - ./garage.toml:/etc/garage.toml:ro
+  #   networks:
+  #     - storage-network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3900/health"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 20s
 
-  garage-ui:
-    image: khairul169/garage-webui:latest
-    container_name: garage-ui
-    env_file:
-      - .env
-    ports:
-      - "3909:3909"   # Web UI
-    environment:
-      API_BASE_URL:  ${GARAGE_ADMIN_ENDPOINT}
-      S3_ENDPOINT_URL: ${GARAGE_S3_ENDPOINT}
-      S3_ACCESS_KEY_ID: ${GARAGE_ACCESS_KEY}
-      S3_SECRET_ACCESS_KEY: ${GARAGE_SECRET_KEY}      
-    volumes:
-      - ./garage.toml:/etc/garage.toml:ro
-    depends_on:
-      - garage
-    networks:
-      - archium-network
+  # garage-ui:
+  #   image: khairul169/garage-webui:latest
+  #   container_name: garage-ui
+  #   env_file:
+  #     - .env
+  #   ports:
+  #     - "3909:3909"   # Web UI
+  #   environment:
+  #     API_BASE_URL:  ${GARAGE_ADMIN_ENDPOINT}
+  #     S3_ENDPOINT_URL: ${GARAGE_S3_ENDPOINT}
+  #     S3_ACCESS_KEY_ID: ${GARAGE_ACCESS_KEY}
+  #     S3_SECRET_ACCESS_KEY: ${GARAGE_SECRET_KEY}      
+  #   volumes:
+  #     - ./garage.toml:/etc/garage.toml:ro
+  #   depends_on:
+  #     - garage
+  #   networks:
+  #     - storage-network
 
-  storage-api:
-    container_name: storage-api
+  storage-service:
+    container_name: storage-service
     build:
-      context: .
+      context: .   
       dockerfile: src/API/Dockerfile
     env_file:
       - .env
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
     depends_on:
-      minio:
-        condition: service_healthy
       elasticsearch:
         condition: service_healthy
     ports:
       - "5034:8080"
     networks:
-      - archium-network
+      - storage-network
     volumes:
       - ./error-codes/errors.json:/app/errors.json:ro
 
@@ -116,7 +90,7 @@ services:
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
     networks:
-      - archium-network
+      - storage-network
     # volumes:
     #   - esdata:/usr/share/elasticsearch/data
     healthcheck:
@@ -136,15 +110,12 @@ services:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - xpack.security.enabled=false
     networks:
-      - archium-network
+      - storage-network
     depends_on:
       - elasticsearch
     restart: always
 
-volumes:
-  storage-db-data:
-
 networks:
-  archium-network:
+  storage-network:
     driver: bridge
-    name: archium-network
+    name: storage-network

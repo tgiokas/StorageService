@@ -19,7 +19,8 @@ public class DocumentStorageService : IDocumentStorageService
     private readonly IErrorCatalog _errors;
     private readonly ILogger<DocumentStorageService> _logger;
     private readonly IDocumentIndexRepository? _indexRepository;
-
+    
+    private const int MaxBatchDeleteItems = 100;
     private const int MaxBatchMoveItems = 100;
 
     public DocumentStorageService(
@@ -38,6 +39,28 @@ public class DocumentStorageService : IDocumentStorageService
 
     private bool IsIndexingEnabled => _indexingSettings.Enabled && _indexRepository is not null;
 
+    public async Task<Result<IReadOnlyList<StorageObjectDto>>> ListObjectsAsync(string bucket, string? prefix = null, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(bucket))
+            return _errors.Fail<IReadOnlyList<StorageObjectDto>>(ErrorCodes.STORAGE.InvalidBucket);
+
+        try
+        {
+            var objects = await _storageProvider.ListObjectsAsync(bucket, prefix, ct);
+
+            var dtos = objects
+                .Select(MapToDto)
+                .ToList() as IReadOnlyList<StorageObjectDto>;
+
+            return Result<IReadOnlyList<StorageObjectDto>>.Ok(dtos, $"Found {dtos.Count} objects.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to list objects in bucket {Bucket} with prefix '{Prefix}'", bucket, prefix);
+            return _errors.Fail<IReadOnlyList<StorageObjectDto>>(ErrorCodes.STORAGE.ListObjectsFailed);
+        }
+    }
+    
     public async Task<Result<StorageObjectDto>> UploadAsync(DocumentUploadDto request, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(request.Bucket))
@@ -54,7 +77,7 @@ public class DocumentStorageService : IDocumentStorageService
 
         try
         {
-            // Business rule: Bucket + Key is the identity, duplicates are rejected
+            // Bucket + Key is the identity, duplicates are rejected
             var exists = await _storageProvider.ExistsAsync(request.Bucket, request.Key, ct);
             if (exists)
             {
@@ -149,40 +172,85 @@ public class DocumentStorageService : IDocumentStorageService
             _logger.LogError(ex, "Failed to download document {Key} from bucket {Bucket}", key, bucket);
             return _errors.Fail<DocumentDownloadDto>(ErrorCodes.STORAGE.DownloadFailed);
         }
-    }
+    }   
 
-    public async Task<Result<bool>> DeleteAsync(string bucket, string key, CancellationToken ct = default)
+    public async Task<Result<DocumentBatchDeleteResultDto>> DeleteAsync(List<DocumentLocatorDto> request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(bucket))
-            return _errors.Fail<bool>(ErrorCodes.STORAGE.InvalidBucket);
+        if (request is null || request.Count == 0)
+            return _errors.Fail<DocumentBatchDeleteResultDto>(ErrorCodes.STORAGE.InvalidKey);
 
-        if (string.IsNullOrWhiteSpace(key))
-            return _errors.Fail<bool>(ErrorCodes.STORAGE.InvalidKey);
+        if (request.Count > MaxBatchDeleteItems)
+            return _errors.Fail<DocumentBatchDeleteResultDto>(ErrorCodes.STORAGE.BatchLimitExceeded);
 
-        try
-        {            
-            await _storageProvider.DeleteAsync(bucket, key, ct);
+        var resultDto = new DocumentBatchDeleteResultDto
+        {
+            TotalRequested = request.Count
+        };
 
-            if (IsIndexingEnabled)
+        foreach (var item in request)
+        {
+            var itemResult = new DocumentItemDeleteResultDto
             {
-                try
-                {
-                    await _indexRepository!.DeleteByBucketAndKeyAsync(bucket, key, ct);
-                    _logger.LogInformation("Removed index entry for {Bucket}/{Key}", bucket, key);
-                }
-                catch (Exception indexEx)
-                {
-                    _logger.LogWarning(indexEx, "Object deletion succeeded but index deletion failed for {Bucket}/{Key}", bucket, key);
-                }
+                Bucket = item.Bucket,
+                Key = item.Key
+            };
+
+            if (string.IsNullOrWhiteSpace(item.Bucket))
+            {
+                itemResult.Error = "Bucket is required.";
+                itemResult.ErrorCode = ErrorCodes.STORAGE.InvalidBucket;
+                resultDto.Results.Add(itemResult);
+                resultDto.Failed++;
+                continue;
             }
 
-            return Result<bool>.Ok(true, "Document deleted successfully.");
+            if (string.IsNullOrWhiteSpace(item.Key))
+            {
+                itemResult.Error = "Key is required.";
+                itemResult.ErrorCode = ErrorCodes.STORAGE.InvalidKey;
+                resultDto.Results.Add(itemResult);
+                resultDto.Failed++;
+                continue;
+            }
+
+            try
+            {
+                await _storageProvider.DeleteAsync(item.Bucket, item.Key, ct);
+
+                if (IsIndexingEnabled)
+                {
+                    try
+                    {
+                        await _indexRepository!.DeleteByBucketAndKeyAsync(item.Bucket, item.Key, ct);
+                        _logger.LogInformation("Removed index entry for {Bucket}/{Key}", item.Bucket, item.Key);
+                    }
+                    catch (Exception indexEx)
+                    {
+                        _logger.LogWarning(indexEx,
+                            "Object deletion succeeded but index deletion failed for {Bucket}/{Key}",
+                            item.Bucket, item.Key);
+                    }
+                }
+
+                itemResult.Success = true;
+                resultDto.Succeeded++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to delete document {Key} from bucket {Bucket}", item.Key, item.Bucket);
+                itemResult.Error = $"Failed to delete '{item.Bucket}/{item.Key}'.";
+                itemResult.ErrorCode = ErrorCodes.STORAGE.DeleteFailed;
+                resultDto.Failed++;
+            }
+
+            resultDto.Results.Add(itemResult);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to delete document {Key} from bucket {Bucket}", key, bucket);
-            return _errors.Fail<bool>(ErrorCodes.STORAGE.DeleteFailed);
-        }
+
+        var message = resultDto.Failed == 0
+            ? "All documents deleted successfully."
+            : $"{resultDto.Succeeded} of {resultDto.TotalRequested} documents deleted successfully.";
+
+        return Result<DocumentBatchDeleteResultDto>.Ok(resultDto, message);
     }
 
     public async Task<Result<StorageObjectDto>> GetMetadataAsync(string bucket, string key, CancellationToken ct = default)
@@ -260,10 +328,6 @@ public class DocumentStorageService : IDocumentStorageService
             Bucket = metadata.Bucket,
             Key = metadata.Key,
             FileName = Path.GetFileName(request.Key),
-            ContentType = metadata.ContentType,
-            Size = metadata.Size,
-            IsEncrypted = metadata.Metadata.ContainsKey("x-encrypted"),
-            UploadedBy = request.UploadedBy,
             UploadedAt = DateTime.UtcNow,
             Tags = request.Metadata ?? new Dictionary<string, string>()
         };
@@ -291,7 +355,7 @@ public class DocumentStorageService : IDocumentStorageService
             return result;
         }
 
-        // Same bucket + same key = no-op
+        // Same bucket + same key = return
         if (sourceBucket == destinationBucket && sourceKey == destinationKey)
         {
             result.Success = true;
@@ -342,7 +406,6 @@ public class DocumentStorageService : IDocumentStorageService
                         indexEntry.Bucket = destinationBucket;
                         indexEntry.Key = destinationKey;
                         indexEntry.FileName = Path.GetFileName(destinationKey);
-                        indexEntry.ModifiedAt = DateTime.UtcNow;
                         await _indexRepository.UpdateAsync(indexEntry, ct);
                     }
                 }
@@ -412,6 +475,7 @@ public class DocumentStorageService : IDocumentStorageService
         Size = info.Size,
         ContentType = info.ContentType,
         ETag = info.ETag,
+        IsDir = info.IsDir,
         LastModified = info.LastModified,
         Metadata = info.Metadata
             .Where(kvp => !kvp.Key.Equals("x-encrypted", StringComparison.OrdinalIgnoreCase))

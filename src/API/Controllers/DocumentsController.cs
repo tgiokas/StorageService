@@ -17,6 +17,19 @@ public class DocumentsController : ControllerBase
         _storageService = storageService;
     }
 
+    [HttpGet("list")]
+    public async Task<IActionResult> ListObjects([FromQuery] string bucket, [FromQuery] string? prefix = null, CancellationToken ct = default)
+    {
+        var result = await _storageService.ListObjectsAsync(bucket, prefix, ct);
+
+        if (!result.Success)
+        {
+            return Accepted(result);
+        }
+
+        return Ok(result);
+    }
+
     /// Upload a document to a bucket.
     /// Tags are optional JSON key-value pairs for indexing (e.g. ?metadata={"department":"hr","year":"2025"})    
     [HttpPost("upload")]
@@ -33,7 +46,7 @@ public class DocumentsController : ControllerBase
             return BadRequest(Result<string>.Fail("No file provided.", "STR-024"));
         }
 
-        var objectKey = key ?? file.FileName;
+        var objectKey = key ?? file.FileName;        
 
         // Parse tags from JSON query string if provided
         Dictionary<string, string>? parsedTags = null;
@@ -41,6 +54,7 @@ public class DocumentsController : ControllerBase
         {
             try
             {
+                metadata = metadata.Trim().Trim('"').Replace("\\\"", "\"");
                 parsedTags = JsonSerializer.Deserialize<Dictionary<string, string>>(metadata);
             }
             catch
@@ -85,11 +99,11 @@ public class DocumentsController : ControllerBase
         return File(data.Content, data.ContentType, data.FileName);
     }
 
-    /// Delete a document from a bucket.    
+    /// Delete a list of documents (i.e bucket + key) Supports batch operations up to 100 items.
     [HttpPost("delete")]
-    public async Task<IActionResult> Delete(DocumentLocatorDto locator, CancellationToken ct = default)
+    public async Task<IActionResult> Delete(List<DocumentLocatorDto> request, CancellationToken ct = default)
     {
-        var result = await _storageService.DeleteAsync(locator.Bucket, locator.Key, ct);
+        var result = await _storageService.DeleteAsync(request, ct);
 
         if (!result.Success)
         {

@@ -23,6 +23,10 @@
     {"code":"STR-020","message":"Failed to query document index"},
     {"code":"STR-021","message":"Failed to update document index entry"},
     {"code":"STR-022","message":"Failed to delete document index entry"},
-    {"code":"STR-023","message":"Object Already Exists"}
+    {"code":"STR-023","message":"Object Already Exists"},
+    {"code":"STR-024","message":"No File Provided"},
+    {"code":"STR-025","message":"Invalid Tags"},
+    {"code":"STR-026","message":"Failed to move document"},
+    {"code":"STR-027","message":"Batch limit exceeded. Maximum 100 items per request."}
   ]
 }

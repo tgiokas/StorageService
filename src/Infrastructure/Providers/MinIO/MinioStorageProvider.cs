@@ -34,6 +34,41 @@ public class MinioStorageProvider : IStorageProvider
         _logger.LogInformation("MinIO storage provider initialized with endpoint: {Endpoint}", settings.Endpoint);
     }
 
+    public async Task<IReadOnlyList<StorageObjectInfo>> ListObjectsAsync(
+        string bucket,
+        string? prefix = null,
+        CancellationToken ct = default)
+    {
+        var results = new List<StorageObjectInfo>();
+
+        var listArgs = new ListObjectsArgs()
+            .WithBucket(bucket)
+            .WithRecursive(false);
+
+        if (!string.IsNullOrWhiteSpace(prefix))
+            listArgs = listArgs.WithPrefix(prefix);
+
+        await foreach (var item in _client.ListObjectsEnumAsync(listArgs, ct))
+        {
+            results.Add(new StorageObjectInfo
+            {
+                Bucket = bucket,
+                Key = item.Key,
+                Size = (long)item.Size,
+                ContentType = string.Empty,
+                ETag = item.ETag,
+                LastModified = item.LastModifiedDateTime ?? DateTime.MinValue,
+                Metadata = new Dictionary<string, string>(),
+                IsDir = item.IsDir
+            });
+        }
+
+        _logger.LogInformation("Listed {Count} objects in bucket {Bucket} with prefix '{Prefix}'",
+            results.Count, bucket, prefix);
+
+        return results;
+    }
+
     public async Task<StorageObjectInfo> UploadAsync(
         string bucket,
         string key,

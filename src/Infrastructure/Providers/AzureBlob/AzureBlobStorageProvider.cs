@@ -35,6 +35,64 @@ public class AzureBlobStorageProvider : IStorageProvider
             _serviceClient.AccountName);
     }
 
+    public async Task<IReadOnlyList<StorageObjectInfo>> ListObjectsAsync(
+        string bucket,
+        string? prefix = null,
+        CancellationToken ct = default)
+    {
+        var containerClient = _serviceClient.GetBlobContainerClient(bucket);
+        var results = new List<StorageObjectInfo>();
+
+        var options = new GetBlobsByHierarchyOptions
+        {
+            Prefix = prefix,
+            Delimiter = "/",
+            Traits = BlobTraits.Metadata
+        };
+
+        await foreach (var item in containerClient.GetBlobsByHierarchyAsync(options, ct))
+        {
+            if (item.IsPrefix)
+            {
+                results.Add(new StorageObjectInfo
+                {
+                    Bucket = bucket,
+                    Key = item.Prefix,
+                    Size = 0,
+                    ContentType = string.Empty,
+                    ETag = null,
+                    LastModified = DateTime.MinValue,
+                    Metadata = new Dictionary<string, string>(),
+                    IsDir = true
+                });
+            }
+            else if (item.IsBlob)
+            {
+                var blob = item.Blob;
+                var metadata = blob.Metadata?
+                    .ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.OrdinalIgnoreCase)
+                    ?? new Dictionary<string, string>();
+
+                results.Add(new StorageObjectInfo
+                {
+                    Bucket = bucket,
+                    Key = blob.Name,
+                    Size = blob.Properties.ContentLength ?? 0,
+                    ContentType = blob.Properties.ContentType ?? string.Empty,
+                    ETag = blob.Properties.ETag?.ToString(),
+                    LastModified = blob.Properties.LastModified?.UtcDateTime ?? DateTime.MinValue,
+                    Metadata = metadata,
+                    IsDir = false
+                });
+            }
+        }
+
+        _logger.LogInformation("Listed {Count} items in container {Bucket} with prefix '{Prefix}'",
+            results.Count, bucket, prefix);
+
+        return results;
+    }
+
     public async Task<StorageObjectInfo> UploadAsync(
         string bucket,
         string key,

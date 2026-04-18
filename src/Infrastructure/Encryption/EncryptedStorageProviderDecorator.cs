@@ -84,6 +84,10 @@ public class EncryptedStorageProviderDecorator : IStorageProvider
     }
 
     // All other operations pass through to the inner provider unchanged
+
+    public Task<IReadOnlyList<StorageObjectInfo>> ListObjectsAsync(string bucket, string? prefix = null, CancellationToken ct = default)
+        => _inner.ListObjectsAsync(bucket, prefix, ct);
+
     public Task DeleteAsync(string bucket, string key, CancellationToken ct = default)
         => _inner.DeleteAsync(bucket, key, ct);
 

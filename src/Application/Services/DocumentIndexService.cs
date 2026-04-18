@@ -43,22 +43,18 @@ public class DocumentIndexService : IDocumentIndexService
 
     public async Task<Result<PagedResultDto<DocumentIndexDto>>> SearchAsync(DocumentSearchDto request, CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(request.SearchText))
+            return _errors.Fail<PagedResultDto<DocumentIndexDto>>(ErrorCodes.STORAGE.SearchTextRequired);
+
         try
         {
             var query = new DocumentIndexQuery
             {
-                Bucket = request.Bucket,
-                KeyPrefix = request.KeyPrefix,
-                FileName = request.FileName,
-                ContentType = request.ContentType,
-                UploadedBy = request.UploadedBy,
-                UploadedFrom = request.UploadedFrom,
-                UploadedTo = request.UploadedTo,
-                Tags = request.Tags,
-                PageNumber = request.PageNumber,
-                PageSize = request.PageSize,
-                SortBy = request.SortBy,
-                SortDescending = request.SortDescending
+                SearchText = request.SearchText,
+                PageNumber = request.PageNumber ?? 1,
+                PageSize = request.PageSize ?? 10,
+                SortBy = request.SortBy ?? "UploadedAt",
+                SortDescending = request.SortDescending ?? true
             };
 
             var (results, total) = await _repository.SearchAsync(query, ct);
@@ -66,8 +62,8 @@ public class DocumentIndexService : IDocumentIndexService
             var pagedResult = new PagedResultDto<DocumentIndexDto>
             {
                 Results = results.Select(MapToDto).ToList(),
-                CurrentPage = request.PageNumber,
-                PageSize = request.PageSize,
+                CurrentPage = query.PageNumber,
+                PageSize = query.PageSize,
                 TotalCount = total
             };
 
@@ -80,24 +76,25 @@ public class DocumentIndexService : IDocumentIndexService
         }
     }
 
-    public async Task<Result<DocumentIndexDto>> UpdateTagsAsync(Guid id, Dictionary<string, string> tags, CancellationToken ct = default)
+    public async Task<Result<DocumentIndexDto>> UpdateTagsAsync(
+        string bucket, string key, Dictionary<string, string> tags, CancellationToken ct = default)
     {
         try
         {
-            var doc = await _repository.GetByIdAsync(id, ct);
+            var doc = await _repository.GetByBucketAndKeyAsync(bucket, key, ct);
             if (doc == null)
                 return _errors.Fail<DocumentIndexDto>(ErrorCodes.STORAGE.IndexEntryNotFound);
 
             doc.Tags = tags;
-            doc.ModifiedAt = DateTime.UtcNow;
+            //doc.ModifiedAt = DateTime.UtcNow;
             await _repository.UpdateAsync(doc, ct);
 
-            _logger.LogInformation("Updated tags for index entry {Id}", id);
+            _logger.LogInformation("Updated tags for index entry {Bucket}/{Key}", bucket, key);
             return Result<DocumentIndexDto>.Ok(MapToDto(doc), "Tags updated successfully.");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update tags for index entry {Id}", id);
+            _logger.LogError(ex, "Failed to update tags for index entry {Bucket}/{Key}", bucket, key);
             return _errors.Fail<DocumentIndexDto>(ErrorCodes.STORAGE.IndexUpdateFailed);
         }
     }
@@ -108,12 +105,7 @@ public class DocumentIndexService : IDocumentIndexService
         Bucket = doc.Bucket,
         Key = doc.Key,
         FileName = doc.FileName,
-        ContentType = doc.ContentType,
-        Size = doc.Size,
-        IsEncrypted = doc.IsEncrypted,
-        UploadedBy = doc.UploadedBy,
         UploadedAt = doc.UploadedAt,
-        ModifiedAt = doc.ModifiedAt,
         Tags = doc.Tags
     };
 }

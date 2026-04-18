@@ -1,10 +1,13 @@
-using Microsoft.Extensions.Configuration;
+using DotNetEnv;
 using Serilog;
 
 using Storage.Api.Middlewares;
 using Storage.Application;
 using Storage.Application.Configuration;
 using Storage.Infrastructure;
+
+Env.Load();
+Env.TraversePath().Load();
 
 var builder = WebApplication.CreateBuilder(args);
 

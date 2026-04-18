@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Elastic.Clients.Elasticsearch;
@@ -176,49 +176,16 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
         }
     }
 
+    /// Searches for SearchText as a substring in Key, FileName, and any Tags value.
     private static void BuildQuery(QueryDescriptor<DocumentIndex> q, DocumentIndexQuery query)
     {
-        var musts = new List<Action<QueryDescriptor<DocumentIndex>>>();
+        var pattern = $"*{query.SearchText.Trim()}*";
 
-        if (!string.IsNullOrWhiteSpace(query.Bucket))
-            musts.Add(m => m.Term(t => t.Field(f => f.Bucket).Value(query.Bucket)));
-
-        if (!string.IsNullOrWhiteSpace(query.KeyPrefix))
-            musts.Add(m => m.Prefix(p => p.Field(f => f.Key).Value(query.KeyPrefix)));
-
-        if (!string.IsNullOrWhiteSpace(query.FileName))
-            musts.Add(m => m.Wildcard(w => w.Field(f => f.FileName).Value($"*{query.FileName}*").CaseInsensitive(true)));
-
-        if (!string.IsNullOrWhiteSpace(query.ContentType))
-            musts.Add(m => m.Term(t => t.Field(f => f.ContentType).Value(query.ContentType)));
-
-        if (!string.IsNullOrWhiteSpace(query.UploadedBy))
-            musts.Add(m => m.Term(t => t.Field(f => f.UploadedBy).Value(query.UploadedBy)));
-
-        if (query.UploadedFrom.HasValue || query.UploadedTo.HasValue)
-        {
-            musts.Add(m => m.Range(r => r.Date(dr =>
-            {
-                dr.Field(f => f.UploadedAt);
-                if (query.UploadedFrom.HasValue) dr.Gte(query.UploadedFrom.Value);
-                if (query.UploadedTo.HasValue) dr.Lte(query.UploadedTo.Value);
-            })));
-        }
-
-        if (query.Tags != null && query.Tags.Count > 0)
-        {
-            foreach (var tag in query.Tags)
-            {
-                var tagKey = tag.Key;
-                var tagValue = tag.Value;
-                musts.Add(m => m.Term(t => t.Field($"tags.{tagKey}").Value(tagValue)));
-            }
-        }
-
-        if (musts.Count > 0)
-            q.Bool(b => b.Must(musts.ToArray()));
-        else
-            q.MatchAll();
+        q.Bool(b => b.Should(
+            s => s.Wildcard(w => w.Field(f => f.Key).Value(pattern).CaseInsensitive(true)),
+            s => s.Wildcard(w => w.Field(f => f.FileName).Value(pattern).CaseInsensitive(true)),
+            s => s.QueryString(qs => qs.Query(pattern).Fields(new[] { "tags.*" }))
+        ).MinimumShouldMatch(1));
     }
 
     private static void ApplySorting(SearchRequestDescriptor<DocumentIndex> s, string sortBy, bool descending)
@@ -231,12 +198,6 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
             {
                 case "filename":
                     so.Field(Infer.Field<DocumentIndex>(f => f.FileName), d => d.Order(order));
-                    break;
-                case "size":
-                    so.Field(Infer.Field<DocumentIndex>(f => f.Size), d => d.Order(order));
-                    break;
-                case "contenttype":
-                    so.Field(Infer.Field<DocumentIndex>(f => f.ContentType), d => d.Order(order));
                     break;
                 case "uploadedat":
                 default:
@@ -266,12 +227,7 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
                     .Keyword(k => k.Bucket)
                     .Keyword(k => k.Key)
                     .Keyword(k => k.FileName)
-                    .Keyword(k => k.ContentType)
-                    .LongNumber(l => l.Size)
-                    .Boolean(b => b.IsEncrypted)
-                    .Keyword(k => k.UploadedBy)
-                    .Date(d => d.UploadedAt)
-                    .Date(d => d.ModifiedAt)
+                    .Date(d => d.UploadedAt)    
                     .Object(o => o.Tags)
                 )
             ),
@@ -280,7 +236,7 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
         if (createResponse.IsValidResponse)
         {
             _logger.LogInformation("Created Elasticsearch index: {Index}", _indexName);
-        }        
+        }
         else
         {
             _logger.LogError("Failed to create Elasticsearch index {Index}: {Reason}",
