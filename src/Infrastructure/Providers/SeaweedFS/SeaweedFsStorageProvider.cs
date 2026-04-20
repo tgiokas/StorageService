@@ -19,7 +19,7 @@ public class SeaweedFsStorageProvider : IStorageProvider
         _logger.LogInformation("SeaweedFS storage provider initialized with filer: {FilerUrl}", _settings.FilerUrl);
     }
 
-    public Task<IReadOnlyList<StorageObjectInfo>> ListObjectsAsync(string bucket, string? prefix = null, CancellationToken ct = default)
+    public Task<IReadOnlyList<StorageObjectInfo>> ListObjectsAsync(string bucket, string? prefix = null, bool recursive = false, CancellationToken ct = default)
     {
         throw new NotImplementedException("SeaweedFS adapter will be implemented in Step 4.");
     }

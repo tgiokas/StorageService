@@ -37,13 +37,14 @@ public class MinioStorageProvider : IStorageProvider
     public async Task<IReadOnlyList<StorageObjectInfo>> ListObjectsAsync(
         string bucket,
         string? prefix = null,
+        bool recursive = false,
         CancellationToken ct = default)
     {
         var results = new List<StorageObjectInfo>();
 
         var listArgs = new ListObjectsArgs()
             .WithBucket(bucket)
-            .WithRecursive(false);
+            .WithRecursive(recursive);
 
         if (!string.IsNullOrWhiteSpace(prefix))
             listArgs = listArgs.WithPrefix(prefix);
@@ -63,8 +64,8 @@ public class MinioStorageProvider : IStorageProvider
             });
         }
 
-        _logger.LogInformation("Listed {Count} objects in bucket {Bucket} with prefix '{Prefix}'",
-            results.Count, bucket, prefix);
+        _logger.LogInformation("Listed {Count} objects in bucket {Bucket} with prefix '{Prefix}' (recursive={Recursive})",
+            results.Count, bucket, prefix, recursive);
 
         return results;
     }

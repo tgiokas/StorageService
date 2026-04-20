@@ -18,15 +18,14 @@ public class DocumentsController : ControllerBase
     }
 
     [HttpGet("list")]
-    public async Task<IActionResult> ListObjects([FromQuery] string bucket, [FromQuery] string? prefix = null, CancellationToken ct = default)
+    public async Task<IActionResult> ListObjects(
+    [FromQuery] string bucket,
+    [FromQuery] string? prefix = null,
+    [FromQuery] bool recursive = false,
+    CancellationToken ct = default)
     {
-        var result = await _storageService.ListObjectsAsync(bucket, prefix, ct);
-
-        if (!result.Success)
-        {
-            return Accepted(result);
-        }
-
+        var result = await _storageService.ListObjectsAsync(bucket, prefix, recursive, ct);
+        if (!result.Success) return Accepted(result);
         return Ok(result);
     }
 

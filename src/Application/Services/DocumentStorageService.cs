@@ -39,18 +39,21 @@ public class DocumentStorageService : IDocumentStorageService
 
     private bool IsIndexingEnabled => _indexingSettings.Enabled && _indexRepository is not null;
 
-    public async Task<Result<IReadOnlyList<StorageObjectDto>>> ListObjectsAsync(string bucket, string? prefix = null, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<StorageObjectDto>>> ListObjectsAsync(string bucket, string? prefix = null, bool recursive = false, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(bucket))
             return _errors.Fail<IReadOnlyList<StorageObjectDto>>(ErrorCodes.STORAGE.InvalidBucket);
 
+        if (!recursive && !string.IsNullOrWhiteSpace(prefix) && !prefix.EndsWith('/'))
+            prefix += "/";
+
         try
         {
-            var objects = await _storageProvider.ListObjectsAsync(bucket, prefix, ct);
+            var objects = await _storageProvider.ListObjectsAsync(bucket, prefix, recursive, ct);
 
             var dtos = objects
                 .Select(MapToDto)
-                .ToList() as IReadOnlyList<StorageObjectDto>;
+                .ToList();
 
             return Result<IReadOnlyList<StorageObjectDto>>.Ok(dtos, $"Found {dtos.Count} objects.");
         }
@@ -85,12 +88,12 @@ public class DocumentStorageService : IDocumentStorageService
                 return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.ObjectAlreadyExists);
             }
 
-            // Prefix tag keys so they don't collide with system metadata (e.g. x-encrypted)
+            // Prefix tag keys so they don't collide with system metadata (e.g. x_encrypted)
             Dictionary<string, string>? objectMetadata = null;
             if (request.Metadata != null && request.Metadata.Count > 0)
             {
                 objectMetadata = request.Metadata
-                    .ToDictionary(kvp => $"x-tag-{kvp.Key}", kvp => kvp.Value);
+                    .ToDictionary(kvp => $"x_tag_{kvp.Key}", kvp => kvp.Value);
             }
 
             var storageObject = await _storageProvider.UploadAsync(
@@ -478,9 +481,9 @@ public class DocumentStorageService : IDocumentStorageService
         IsDir = info.IsDir,
         LastModified = info.LastModified,
         Metadata = info.Metadata
-            .Where(kvp => !kvp.Key.Equals("x-encrypted", StringComparison.OrdinalIgnoreCase))
+            .Where(kvp => !kvp.Key.Equals("x_encrypted", StringComparison.OrdinalIgnoreCase))
             .ToDictionary(
-                kvp => kvp.Key.StartsWith("x-tag-", StringComparison.OrdinalIgnoreCase)
+                kvp => kvp.Key.StartsWith("x_tag_", StringComparison.OrdinalIgnoreCase)
                     ? kvp.Key[6..]
                     : kvp.Key,
                 kvp => kvp.Value)

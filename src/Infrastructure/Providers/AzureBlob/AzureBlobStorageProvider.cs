@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using Azure.Storage.Sas;
 
 using Storage.Domain.Interfaces;
 using Storage.Domain.Exceptions;
@@ -17,8 +16,6 @@ namespace Storage.Infrastructure.Providers.AzureBlob;
 /// Concept mapping:
 ///   - S3 "bucket"       - Azure Blob "container"
 ///   - S3 "key"          - Azure Blob "blob name"
-/// Custom metadata is stored via <see cref="BlobHttpHeaders"/> and <see cref="BlobUploadOptions.Metadata"/>.
-/// Azure normalises user-metadata keys to lowercase; callers should not rely on casing.
 public class AzureBlobStorageProvider : IStorageProvider
 {
     private readonly BlobServiceClient _serviceClient;
@@ -89,6 +86,93 @@ public class AzureBlobStorageProvider : IStorageProvider
 
         _logger.LogInformation("Listed {Count} items in container {Bucket} with prefix '{Prefix}'",
             results.Count, bucket, prefix);
+
+        return results;
+    }
+
+    public async Task<IReadOnlyList<StorageObjectInfo>> ListObjectsAsync(
+        string bucket,
+        string? prefix = null,
+        bool recursive = false,
+        CancellationToken ct = default)
+    {
+        var containerClient = _serviceClient.GetBlobContainerClient(bucket);
+        var results = new List<StorageObjectInfo>();
+
+        if (recursive)
+        {
+            var options = new GetBlobsOptions
+            {
+                Prefix = prefix 
+            };
+            
+            // Flat listing of every blob under the prefix
+            await foreach (var blob in containerClient.GetBlobsAsync(options, ct))
+            {
+                results.Add(new StorageObjectInfo
+                {
+                    Bucket = bucket,
+                    Key = blob.Name,
+                    Size = blob.Properties.ContentLength ?? 0,
+                    ContentType = blob.Properties.ContentType ?? string.Empty,
+                    ETag = blob.Properties.ETag?.ToString(),
+                    LastModified = blob.Properties.LastModified?.UtcDateTime ?? DateTime.MinValue,
+                    Metadata = blob.Metadata != null
+                        ? new Dictionary<string, string>(blob.Metadata, StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, string>(),
+                    IsDir = false
+                });
+            }
+        }
+        else
+        {
+            var options = new GetBlobsByHierarchyOptions
+            {
+                Prefix = prefix,
+                Delimiter = "/",
+                Traits = BlobTraits.Metadata
+            };
+
+            // Hierarchical listing — returns both blobs and virtual "folders" (prefixes)
+            await foreach (var item in containerClient.GetBlobsByHierarchyAsync(options, ct))
+            {
+                if (item.IsPrefix)
+                {
+                    // Virtual folder marker
+                    results.Add(new StorageObjectInfo
+                    {
+                        Bucket = bucket,
+                        Key = item.Prefix,              // e.g. "dev/temp/"
+                        Size = 0,
+                        ContentType = string.Empty,
+                        ETag = null,
+                        LastModified = DateTime.MinValue,
+                        Metadata = new Dictionary<string, string>(),
+                        IsDir = true
+                    });
+                }
+                else
+                {
+                    var blob = item.Blob;
+                    results.Add(new StorageObjectInfo
+                    {
+                        Bucket = bucket,
+                        Key = blob.Name,
+                        Size = blob.Properties.ContentLength ?? 0,
+                        ContentType = blob.Properties.ContentType ?? string.Empty,
+                        ETag = blob.Properties.ETag?.ToString(),
+                        LastModified = blob.Properties.LastModified?.UtcDateTime ?? DateTime.MinValue,
+                        Metadata = blob.Metadata != null
+                            ? new Dictionary<string, string>(blob.Metadata, StringComparer.OrdinalIgnoreCase)
+                            : new Dictionary<string, string>(),
+                        IsDir = false
+                    });
+                }
+            }
+        }
+
+        _logger.LogInformation("Listed {Count} blobs in container {Bucket} with prefix '{Prefix}' (recursive={Recursive})",
+            results.Count, bucket, prefix, recursive);
 
         return results;
     }

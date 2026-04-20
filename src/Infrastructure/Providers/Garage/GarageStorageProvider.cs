@@ -59,13 +59,14 @@ public class GarageStorageProvider : IStorageProvider
     public async Task<IReadOnlyList<StorageObjectInfo>> ListObjectsAsync(
         string bucket,
         string? prefix = null,
+        bool recursive = false,
         CancellationToken ct = default)
     {
         var results = new List<StorageObjectInfo>();
 
         var listArgs = new ListObjectsArgs()
             .WithBucket(bucket)
-            .WithRecursive(true);
+            .WithRecursive(recursive);
 
         if (!string.IsNullOrWhiteSpace(prefix))
             listArgs = listArgs.WithPrefix(prefix);

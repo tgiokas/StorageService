@@ -7,6 +7,7 @@ public interface IStorageProvider
     Task<IReadOnlyList<StorageObjectInfo>> ListObjectsAsync(
         string bucket,
         string? prefix = null,
+        bool recursive = false,
         CancellationToken ct = default);
 
     Task<StorageObjectInfo> UploadAsync(

@@ -9,9 +9,9 @@ namespace Storage.Infrastructure.Encryption;
 ///
 /// On upload: encrypts the stream before passing to the inner provider.
 /// On download: decrypts the stream after receiving from the inner provider.
-/// All other operations pass through unchanged.
+/// All other operations pass through unchanged.F
 ///
-/// Encrypted objects are tagged with metadata key "x-encrypted" = "true"
+/// Encrypted objects are tagged with metadata key "x_encrypted" = "true"
 /// so the system knows which objects need decryption on download.
 public class EncryptedStorageProviderDecorator : IStorageProvider
 {
@@ -19,7 +19,7 @@ public class EncryptedStorageProviderDecorator : IStorageProvider
     private readonly IEncryptionService _encryptionService;
     private readonly ILogger<EncryptedStorageProviderDecorator> _logger;
 
-    private const string EncryptedMetadataKey = "x-encrypted";
+    private const string EncryptedMetadataKey = "x_encrypted";
     private const string EncryptedMetadataValue = "true";
 
     public EncryptedStorageProviderDecorator(
@@ -85,8 +85,8 @@ public class EncryptedStorageProviderDecorator : IStorageProvider
 
     // All other operations pass through to the inner provider unchanged
 
-    public Task<IReadOnlyList<StorageObjectInfo>> ListObjectsAsync(string bucket, string? prefix = null, CancellationToken ct = default)
-        => _inner.ListObjectsAsync(bucket, prefix, ct);
+    public Task<IReadOnlyList<StorageObjectInfo>> ListObjectsAsync(string bucket, string? prefix = null, bool recursive = false, CancellationToken ct = default)
+        => _inner.ListObjectsAsync(bucket, prefix, recursive, ct);
 
     public Task DeleteAsync(string bucket, string key, CancellationToken ct = default)
         => _inner.DeleteAsync(bucket, key, ct);
