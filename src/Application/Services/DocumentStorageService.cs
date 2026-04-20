@@ -93,7 +93,7 @@ public class DocumentStorageService : IDocumentStorageService
             if (request.Metadata != null && request.Metadata.Count > 0)
             {
                 objectMetadata = request.Metadata
-                    .ToDictionary(kvp => $"x_tag_{kvp.Key}", kvp => kvp.Value);
+                    .ToDictionary(kvp => $"xtag_{kvp.Key}", kvp => kvp.Value);
             }
 
             var storageObject = await _storageProvider.UploadAsync(
@@ -481,10 +481,10 @@ public class DocumentStorageService : IDocumentStorageService
         IsDir = info.IsDir,
         LastModified = info.LastModified,
         Metadata = info.Metadata
-            .Where(kvp => !kvp.Key.Equals("x_encrypted", StringComparison.OrdinalIgnoreCase))
+            .Where(kvp => !kvp.Key.Equals("xencrypted", StringComparison.OrdinalIgnoreCase))
             .ToDictionary(
-                kvp => kvp.Key.StartsWith("x_tag_", StringComparison.OrdinalIgnoreCase)
-                    ? kvp.Key[6..]
+                kvp => kvp.Key.StartsWith("xtag_", StringComparison.OrdinalIgnoreCase)
+                    ? kvp.Key[5..]
                     : kvp.Key,
                 kvp => kvp.Value)
     };
