@@ -182,10 +182,11 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
         var pattern = $"*{query.SearchText.Trim()}*";
 
         q.Bool(b => b.Should(
-            s => s.Wildcard(w => w.Field(f => f.Key).Value(pattern).CaseInsensitive(true)),
-            s => s.Wildcard(w => w.Field(f => f.FileName).Value(pattern).CaseInsensitive(true)),
-            s => s.QueryString(qs => qs.Query(pattern).Fields(new[] { "tags.*" }))
-        ).MinimumShouldMatch(1));
+         s => s.Wildcard(w => w.Field(f => f.Key).Value(pattern).CaseInsensitive(true)),
+         s => s.Wildcard(w => w.Field(f => f.FileName).Value(pattern).CaseInsensitive(true)),
+         // Flattened field: wildcard matches across all tag values in one shot
+         s => s.Wildcard(w => w.Field("tags").Value(pattern).CaseInsensitive(true))
+     ).MinimumShouldMatch(1));
     }
 
     private static void ApplySorting(SearchRequestDescriptor<DocumentIndex> s, string sortBy, bool descending)
@@ -228,7 +229,7 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
                     .Keyword(k => k.Key)
                     .Keyword(k => k.FileName)
                     .Date(d => d.UploadedAt)    
-                    .Object(o => o.Tags)
+                    .Flattened(f => f.Tags)
                 )
             ),
             ct);

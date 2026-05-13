@@ -86,23 +86,14 @@ public class DocumentStorageService : IDocumentStorageService
             {
                 _logger.LogWarning("Rejected duplicate upload for {Bucket}/{Key}", request.Bucket, request.Key);
                 return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.ObjectAlreadyExists);
-            }
-
-            // Prefix tag keys so they don't collide with system metadata (e.g. x_encrypted)
-            Dictionary<string, string>? objectMetadata = null;
-            if (request.Metadata != null && request.Metadata.Count > 0)
-            {
-                objectMetadata = request.Metadata
-                    .ToDictionary(kvp => $"xtag_{kvp.Key}", kvp => kvp.Value);
-            }
+            }            
 
             var storageObject = await _storageProvider.UploadAsync(
                 request.Bucket,
                 request.Key,
                 request.Content,
-                request.ContentType,
-                objectMetadata,
-                ct);
+                request.ContentType,                
+                ct: ct);
 
             try
             {
@@ -481,11 +472,6 @@ public class DocumentStorageService : IDocumentStorageService
         IsDir = info.IsDir,
         LastModified = info.LastModified,
         Metadata = info.Metadata
-            .Where(kvp => !kvp.Key.Equals("xencrypted", StringComparison.OrdinalIgnoreCase))
-            .ToDictionary(
-                kvp => kvp.Key.StartsWith("xtag_", StringComparison.OrdinalIgnoreCase)
-                    ? kvp.Key[5..]
-                    : kvp.Key,
-                kvp => kvp.Value)
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
     };
 }

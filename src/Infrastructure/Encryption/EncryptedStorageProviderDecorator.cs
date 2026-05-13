@@ -11,7 +11,7 @@ namespace Storage.Infrastructure.Encryption;
 /// On download: decrypts the stream after receiving from the inner provider.
 /// All other operations pass through unchanged.
 ///
-/// Encrypted objects are tagged with metadata key "x-encrypted" = "true"
+/// Encrypted objects are tagged with metadata key "x_encrypted" = "true"
 /// so the system knows which objects need decryption on download.
 public class EncryptedStorageProviderDecorator : IStorageProvider
 {
@@ -19,7 +19,7 @@ public class EncryptedStorageProviderDecorator : IStorageProvider
     private readonly IEncryptionService _encryptionService;
     private readonly ILogger<EncryptedStorageProviderDecorator> _logger;
 
-    private const string EncryptedMetadataKey = "xencrypted";
+    private const string EncryptedMetadataKey = "x_encrypted";
     private const string EncryptedMetadataValue = "true";
 
     public EncryptedStorageProviderDecorator(
