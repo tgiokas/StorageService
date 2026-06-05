@@ -85,8 +85,7 @@ public class DocumentIndexService : IDocumentIndexService
             if (doc == null)
                 return _errors.Fail<DocumentIndexDto>(ErrorCodes.STORAGE.IndexEntryNotFound);
 
-            doc.Tags = tags;
-            //doc.ModifiedAt = DateTime.UtcNow;
+            doc.Tags = tags;            
             await _repository.UpdateAsync(doc, ct);
 
             _logger.LogInformation("Updated tags for index entry {Bucket}/{Key}", bucket, key);

@@ -95,6 +95,12 @@ public class MinioStorageProvider : IStorageProvider
 
         var response = await _client.PutObjectAsync(putArgs, ct);
 
+        if (response == null || response.ResponseStatusCode != System.Net.HttpStatusCode.OK)
+        {
+            _logger.LogError("Failed to upload object {Key} to bucket {Bucket}: No response {response} from MinIO client", key, bucket, response);
+            throw new Exception($"Failed to upload object '{key}' to bucket '{bucket}'.");
+        }
+
         _logger.LogInformation("Uploaded object {Key} to bucket {Bucket} ({Size} bytes)", key, bucket, originalSize);
 
         return new StorageObjectInfo
@@ -225,12 +231,15 @@ public class MinioStorageProvider : IStorageProvider
         var existsArgs = new BucketExistsArgs().WithBucket(bucket);
         var exists = await _client.BucketExistsAsync(existsArgs, ct);
 
-        if (!exists)
+        if (exists)
         {
-            var makeArgs = new MakeBucketArgs().WithBucket(bucket);
-            await _client.MakeBucketAsync(makeArgs, ct);
-            _logger.LogInformation("Created bucket {Bucket}", bucket);
+            _logger.LogInformation("bucket {Bucket} already existed ", bucket);
+            return;
         }
-    }    
+
+        var makeArgs = new MakeBucketArgs().WithBucket(bucket);
+        await _client.MakeBucketAsync(makeArgs, ct);
+        _logger.LogInformation("Created bucket {Bucket}", bucket);
+    }  
 
 }

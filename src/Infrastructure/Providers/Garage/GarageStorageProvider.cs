@@ -1,13 +1,12 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using Minio;
 using Minio.DataModel.Args;
 using Minio.Exceptions;
-
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 using Storage.Domain.Interfaces;
 using Storage.Domain.Exceptions;
@@ -226,15 +225,30 @@ public class GarageStorageProvider : IStorageProvider
                 .WithBucket(bucket)
                 .WithObject(key);
 
-            await _client.StatObjectAsync(statArgs, ct);
-            return true;
+            _logger.LogInformation($"Entering StatObjectArgs with statArgs {statArgs}");
+
+            var stat = await _client.StatObjectAsync(statArgs, ct);
+
+            _logger.LogInformation($"Returning from StatObjectArgs with result {stat}");
+
+            // Defensive check — Garage may return an empty ObjectStat instead of throwing
+            var result = stat != null && !string.IsNullOrEmpty(stat.ETag);
+
+            return result;           
         }
-        catch (ObjectNotFoundException)
+        catch (ObjectNotFoundException ex1)
         {
+            _logger.LogError($"ObjectNotFoundException: {ex1}");
             return false;
         }
-        catch (BucketNotFoundException)
+        catch (BucketNotFoundException ex2)
         {
+            _logger.LogError($"BucketNotFoundException: {ex2}");
+            return false;
+        }
+        catch (Exception ex3)
+        {
+            _logger.LogError($"Exception: {ex3}");
             return false;
         }
     }
@@ -243,6 +257,15 @@ public class GarageStorageProvider : IStorageProvider
         string bucket,
         CancellationToken ct = default)
     {
+        var existsArgs = new BucketExistsArgs().WithBucket(bucket);
+        var exists = await _client.BucketExistsAsync(existsArgs, ct);
+
+        if (exists)
+        {
+            _logger.LogInformation("bucket {Bucket} already existed ", bucket);
+            return;
+        }
+
         // CreateBucket
         // Returns 200 with full bucket info (including id) if created.
         // Returns 409 if the bucket already exists.      

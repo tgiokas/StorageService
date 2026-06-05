@@ -79,20 +79,6 @@ public class LogMiddleware
         request.Body.Seek(0, SeekOrigin.Begin);
         return (request.QueryString.ToString(), body);
     }
-    private static string Truncate(string input, int maxLen)
-    {
-        if (string.IsNullOrEmpty(input) || input.Length <= maxLen) return input;
-        return input.Substring(0, maxLen) + "…(truncated)";
-    }
-    private static bool IsJson(HttpRequest req)
-    {
-        return req.ContentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true;
-    }
-
-    private static bool IsFormData(HttpRequest req)
-    {
-        return req.ContentType?.Contains("multipart/form-data", StringComparison.OrdinalIgnoreCase) == true;
-    }
 
     private static async Task<string> GetResponseBody(HttpResponse response)
     {
@@ -102,4 +88,20 @@ public class LogMiddleware
 
         return responseString;
     }
+
+    private static string Truncate(string input, int maxLen)
+    {
+        if (string.IsNullOrEmpty(input) || input.Length <= maxLen) return input;
+        return input.Substring(0, maxLen) + "…(truncated)";
+    }
+
+    private static bool IsJson(HttpRequest req)
+    {
+        return req.ContentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static bool IsFormData(HttpRequest req)
+    {
+        return req.ContentType?.Contains("multipart/form-data", StringComparison.OrdinalIgnoreCase) == true;
+    }   
 }
