@@ -13,7 +13,6 @@ public static class JsonRedactor
         "refreshToken", "accessToken", "token", "idToken","loginToken","setupToken",
         "clientSecret", "code"
     };
-
   
     public static string TryRedact(string input)
     {
@@ -53,8 +52,7 @@ public static class JsonRedactor
             foreach (var item in arr)
             {
                 if (item is not null) RedactNode(item);
-            }
-                
+            }                
         }
     }
 }

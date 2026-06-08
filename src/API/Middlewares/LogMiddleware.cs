@@ -5,7 +5,8 @@ namespace Storage.Api.Middlewares;
 
 public class LogMiddleware
 {
-    private readonly RequestDelegate _next;
+    private readonly RequestDelegate _next; 
+    private const int MaxBufferableBodyBytes = 1024 * 1024; // 1 MB
     private const int MaxPayloadLength = 4096;
 
     const string LogMessageTemplate =
@@ -18,20 +19,9 @@ public class LogMiddleware
 
     public async Task Invoke(HttpContext httpContext, ILogger<LogMiddleware> logger)
     {
-        var (query, body) = await GetRequestParts(httpContext.Request);
-
         // Redact request body
-        string safeRequestBody = body;
-        if (IsJson(httpContext.Request))
-        {
-            safeRequestBody = JsonRedactor.TryRedact(body);
-        }
-        else if (IsFormData(httpContext.Request))
-        {
-            safeRequestBody = MultipartFormDataRedactor.TryRedact(body);
-        }
+        string safeRequestBody = await BuildSafeRequestBodyAsync(httpContext.Request);
         safeRequestBody = Truncate(safeRequestBody, MaxPayloadLength);
-
 
         // Copy a pointer to the original response body stream
         Stream originalBodyStream = httpContext.Response.Body;
@@ -49,10 +39,9 @@ public class LogMiddleware
         {
             sw.Stop();
 
-            string responseBody = await GetResponseBody(httpContext.Response);
-
-            // Redact response body (may contain tokens)
-            string safeResponseBody = JsonRedactor.TryRedact(responseBody);
+            // Only JSON/text responses are read and redacted.
+            // binary responses (e.g. file downloads) are summarised from headers, never buffered.
+            string safeResponseBody = BuildSafeResponseBody(httpContext.Response);
             safeResponseBody = Truncate(safeResponseBody, MaxPayloadLength);
 
             int statusCode = httpContext.Response.StatusCode;
@@ -72,36 +61,81 @@ public class LogMiddleware
         }
     }
 
-    private static async Task<(string query, string body)> GetRequestParts(HttpRequest request)
-    {
-        request.EnableBuffering();
-        string body = await new StreamReader(request.Body).ReadToEndAsync();
-        request.Body.Seek(0, SeekOrigin.Begin);
-        return (request.QueryString.ToString(), body);
-    }
+    private static async Task<string> BuildSafeRequestBodyAsync(HttpRequest request)
+    {        
+        bool isJson = request.ContentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true;
+        bool isForm = request.ContentType?.Contains("multipart/form-data", StringComparison.OrdinalIgnoreCase) == true;
 
-    private static async Task<string> GetResponseBody(HttpResponse response)
-    {
-        response.Body.Seek(0, SeekOrigin.Begin);
-        string responseString = await new StreamReader(response.Body).ReadToEndAsync();
-        response.Body.Seek(0, SeekOrigin.Begin);
+        // Only JSON and form bodies & Get requests  are worth logging.
+        // Anything else with an actual body (octet-stream, etc.) gets a placeholder.
+        // A request with no body (e.g. GET) logs all the QueryString.
+        if (!isJson && !isForm)
+            return HasBody(request)
+                ? DescribeBodyWithoutReading(request)
+                : (request.QueryString.HasValue ? request.QueryString.Value!.TrimStart('?') : string.Empty);
 
-        return responseString;
+        // Don't buffer a large upload into a string only to redact/truncate it away.
+        if (request.ContentLength is long len && len > MaxBufferableBodyBytes)
+            return DescribeBodyWithoutReading(request);
+
+        // Small enough to read: buffer, read, rewind for the controller.
+        var body = await GetRequestBody(request);
+
+        return isJson
+            ? JsonRedactor.TryRedact(body)
+            : MultipartFormDataRedactor.TryRedact(body);
     }
 
     private static string Truncate(string input, int maxLen)
     {
         if (string.IsNullOrEmpty(input) || input.Length <= maxLen) return input;
-        return input.Substring(0, maxLen) + "�(truncated)";
+        return input.Substring(0, maxLen) + "...(truncated)";
     }
 
-    private static bool IsJson(HttpRequest req)
+    private static bool HasBody(HttpRequest request)
     {
-        return req.ContentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true;
+        if (request.ContentLength is long len)
+            return len > 0;
+        return !string.IsNullOrEmpty(request.ContentType);
+    }    
+    
+    private static string DescribeBodyWithoutReading(HttpRequest request)
+    {
+        var contentType = request.ContentType ?? "unknown";
+        return request.ContentLength is long len
+            ? $"[{contentType}; {len} bytes — body not logged]"
+            : $"[{contentType}; body not logged]";
     }
 
-    private static bool IsFormData(HttpRequest req)
+    private static async Task<string> GetRequestBody(HttpRequest request)
     {
-        return req.ContentType?.Contains("multipart/form-data", StringComparison.OrdinalIgnoreCase) == true;
+        request.EnableBuffering();
+        string body = await new StreamReader(request.Body).ReadToEndAsync();
+        request.Body.Seek(0, SeekOrigin.Begin);
+        return body;
+    }
+
+    private static string BuildSafeResponseBody(HttpResponse response)
+    {
+        var contentType = response.ContentType ?? "";
+
+        bool isTextual =
+            contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase) ||
+            contentType.StartsWith("text/", StringComparison.OrdinalIgnoreCase);
+
+        if (!isTextual)
+        {
+            var ct = string.IsNullOrEmpty(contentType) ? "unknown" : contentType;
+            return $"[{ct}; {response.ContentLength?.ToString() ?? "?"} bytes — body not logged]";
+        }
+
+        // Read the buffered response, then rewind so it can still be copied to
+        // the real response stream below (leaveOpen keeps the MemoryStream open).
+        response.Body.Seek(0, SeekOrigin.Begin);
+        using var reader = new StreamReader(response.Body, leaveOpen: true);
+        string body = reader.ReadToEnd();
+        response.Body.Seek(0, SeekOrigin.Begin);
+
+        return JsonRedactor.TryRedact(body);
     }   
 }
