@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.QueryDsl;
+using Elastic.Transport;
 
 using Storage.Application.Configuration;
 using Storage.Domain.Entities;
@@ -27,6 +28,18 @@ public class ElasticDocumentIndexRepository : IDocumentIndexRepository
 
         var clientSettings = new ElasticsearchClientSettings(new Uri(settings.ElasticUrl))
             .DefaultIndex(_indexName);
+
+        if (!string.IsNullOrWhiteSpace(settings.Username))
+        {
+            clientSettings = clientSettings.Authentication(
+                new BasicAuthentication(settings.Username, settings.Password));
+        }
+
+        if (settings.SkipCertificateValidation)
+        {
+            clientSettings = clientSettings.ServerCertificateValidationCallback(
+                (_, _, _, _) => true);
+        }
 
         _elasticSearchClient = new ElasticsearchClient(clientSettings);
 

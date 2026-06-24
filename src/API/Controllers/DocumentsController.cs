@@ -32,7 +32,6 @@ public class DocumentsController : ControllerBase
     /// Upload a document to a bucket.
     /// Tags are optional JSON key-value pairs for indexing (e.g. ?metadata={"department":"hr","year":"2025"})    
     [HttpPost("upload")]
-    [RequestSizeLimit(524_288_000)] // 500 MB
     public async Task<IActionResult> Upload(
         IFormFile file, 
         [FromForm] string bucket,

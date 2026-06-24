@@ -5,9 +5,15 @@ namespace Storage.Api.Middlewares;
 
 public class LogMiddleware
 {
-    private readonly RequestDelegate _next; 
+    private readonly RequestDelegate _next;
     private const int MaxBufferableBodyBytes = 1024 * 1024; // 1 MB
     private const int MaxPayloadLength = 4096;
+
+    // Paths whose responses are streamed (file downloads, etc.) and must NOT be buffered. 
+    private static readonly string[] BodyCaptureBypassPaths =
+    {
+        "/documents/download",
+    };
 
     const string LogMessageTemplate =
         "HTTP {Direction} {RequestMethod} {RequestPath} {RequestPayload} responded {HttpStatusCode} {ResponsePayload} in {Elapsed:0.0000} ms";
@@ -19,9 +25,18 @@ public class LogMiddleware
 
     public async Task Invoke(HttpContext httpContext, ILogger<LogMiddleware> logger)
     {
-        // Redact request body
+        // Redact request body (only JSON and small multipart bodies are read).
         string safeRequestBody = await BuildSafeRequestBodyAsync(httpContext.Request);
         safeRequestBody = Truncate(safeRequestBody, MaxPayloadLength);
+
+        // Streaming endpoints (downloads): never swap the response body to a
+        // MemoryStream, otherwise the whole file would be buffered in memory.
+        // Run the pipeline untouched and log a placeholder for the response body.
+        if (ShouldBypassBodyCapture(httpContext.Request.Path))
+        {
+            await InvokeWithoutCaptureAsync(httpContext, logger, safeRequestBody);
+            return;
+        }
 
         // Copy a pointer to the original response body stream
         Stream originalBodyStream = httpContext.Response.Body;
@@ -44,12 +59,7 @@ public class LogMiddleware
             string safeResponseBody = BuildSafeResponseBody(httpContext.Response);
             safeResponseBody = Truncate(safeResponseBody, MaxPayloadLength);
 
-            int statusCode = httpContext.Response.StatusCode;
-            LogLevel loglevel = statusCode > 499 ? LogLevel.Error : LogLevel.Information;
-
-            // Log using Serilog          
-            logger.Log(loglevel, LogMessageTemplate, "Incoming", httpContext.Request.Method,
-              httpContext.Request.Path, safeRequestBody, statusCode, safeResponseBody, (long)sw.Elapsed.TotalMilliseconds);
+            WriteLog(logger, httpContext, safeRequestBody, safeResponseBody, sw);
 
             httpContext.Response.Body = originalBodyStream;
 
@@ -61,8 +71,53 @@ public class LogMiddleware
         }
     }
 
+    // Runs the pipeline with the original response stream left in place so the
+    // body streams directly to the client. The response body is not read.
+    private async Task InvokeWithoutCaptureAsync(
+        HttpContext httpContext, ILogger logger, string safeRequestBody)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await _next(httpContext);
+        }
+        finally
+        {
+            sw.Stop();
+
+            var contentType = httpContext.Response.ContentType ?? "unknown";
+            var len = httpContext.Response.ContentLength?.ToString() ?? "?";
+            string safeResponseBody = $"[{contentType}; {len} bytes — body not logged (streamed)]";
+
+            WriteLog(logger, httpContext, safeRequestBody, safeResponseBody, sw);
+        }
+    }
+
+    private static void WriteLog(
+        ILogger logger, HttpContext httpContext,
+        string safeRequestBody, string safeResponseBody, Stopwatch sw)
+    {
+        int statusCode = httpContext.Response.StatusCode;
+        LogLevel loglevel = statusCode > 499 ? LogLevel.Error : LogLevel.Information;
+
+        // Log using Serilog
+        logger.Log(loglevel, LogMessageTemplate, "Incoming",
+            httpContext.Request.Method, httpContext.Request.Path, safeRequestBody,
+            statusCode, safeResponseBody, sw.Elapsed.TotalMilliseconds);
+    }
+
+    private static bool ShouldBypassBodyCapture(PathString path)
+    {
+        foreach (var bypass in BodyCaptureBypassPaths)
+        {
+            if (path.StartsWithSegments(bypass, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
     private static async Task<string> BuildSafeRequestBodyAsync(HttpRequest request)
-    {        
+    {
         bool isJson = request.ContentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true;
         bool isForm = request.ContentType?.Contains("multipart/form-data", StringComparison.OrdinalIgnoreCase) == true;
 
@@ -74,8 +129,8 @@ public class LogMiddleware
                 ? DescribeBodyWithoutReading(request)
                 : (request.QueryString.HasValue ? request.QueryString.Value!.TrimStart('?') : string.Empty);
 
-        // Don't buffer a large upload into a string only to redact/truncate it away.
-        if (request.ContentLength is long len && len > MaxBufferableBodyBytes)
+        // Skip large or unknown-length (chunked) bodies - never buffer them just to log.
+        if (request.ContentLength is not long len || len > MaxBufferableBodyBytes)
             return DescribeBodyWithoutReading(request);
 
         // Small enough to read: buffer, read, rewind for the controller.
@@ -86,10 +141,13 @@ public class LogMiddleware
             : MultipartFormDataRedactor.TryRedact(body);
     }
 
-    private static string Truncate(string input, int maxLen)
+    private static async Task<string> GetRequestBody(HttpRequest request)
     {
-        if (string.IsNullOrEmpty(input) || input.Length <= maxLen) return input;
-        return input.Substring(0, maxLen) + "...(truncated)";
+        request.EnableBuffering();
+        using var reader = new StreamReader(request.Body, leaveOpen: true);
+        string body = await reader.ReadToEndAsync();
+        request.Body.Seek(0, SeekOrigin.Begin);
+        return body;
     }
 
     private static bool HasBody(HttpRequest request)
@@ -97,8 +155,8 @@ public class LogMiddleware
         if (request.ContentLength is long len)
             return len > 0;
         return !string.IsNullOrEmpty(request.ContentType);
-    }    
-    
+    }
+
     private static string DescribeBodyWithoutReading(HttpRequest request)
     {
         var contentType = request.ContentType ?? "unknown";
@@ -107,12 +165,10 @@ public class LogMiddleware
             : $"[{contentType}; body not logged]";
     }
 
-    private static async Task<string> GetRequestBody(HttpRequest request)
+    private static string Truncate(string input, int maxLen)
     {
-        request.EnableBuffering();
-        string body = await new StreamReader(request.Body).ReadToEndAsync();
-        request.Body.Seek(0, SeekOrigin.Begin);
-        return body;
+        if (string.IsNullOrEmpty(input) || input.Length <= maxLen) return input;
+        return input.Substring(0, maxLen) + "...(truncated)";
     }
 
     private static string BuildSafeResponseBody(HttpResponse response)
@@ -128,6 +184,12 @@ public class LogMiddleware
             var ct = string.IsNullOrEmpty(contentType) ? "unknown" : contentType;
             return $"[{ct}; {response.ContentLength?.ToString() ?? "?"} bytes — body not logged]";
         }
+        
+        if (response.Body.Length > MaxBufferableBodyBytes)
+        {
+            var ct = string.IsNullOrEmpty(contentType) ? "unknown" : contentType;
+            return $"[{ct}; {response.Body.Length} bytes — body too large to log]";
+        }
 
         // Read the buffered response, then rewind so it can still be copied to
         // the real response stream below (leaveOpen keeps the MemoryStream open).
@@ -137,5 +199,5 @@ public class LogMiddleware
         response.Body.Seek(0, SeekOrigin.Begin);
 
         return JsonRedactor.TryRedact(body);
-    }   
+    }
 }

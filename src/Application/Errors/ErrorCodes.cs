@@ -33,5 +33,6 @@ public static class ErrorCodes
         public const string MoveFailed = "STR-026";
         public const string BatchLimitExceeded = "STR-027";
         public const string SearchTextRequired = "STR-028";
+        public const string FileTooLarge = "STR-029";
     }
 }

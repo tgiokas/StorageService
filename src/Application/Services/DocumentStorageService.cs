@@ -22,7 +22,7 @@ public class DocumentStorageService : IDocumentStorageService
     
     private const int MaxBatchDeleteItems = 100;
     private const int MaxBatchMoveItems = 100;
-
+    private const long MaxUploadBytes = 40L * 1024 * 1024; // 40 MB
     public DocumentStorageService(
         IStorageProvider storageProvider,
         IOptions<IndexingSettings> indexingSettings,
@@ -77,6 +77,9 @@ public class DocumentStorageService : IDocumentStorageService
 
         if (string.IsNullOrWhiteSpace(request.ContentType))
             return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.ContentTypeMissing);
+
+        if (request.Content.CanSeek && request.Content.Length > MaxUploadBytes)
+            return _errors.Fail<StorageObjectDto>(ErrorCodes.STORAGE.FileTooLarge);
 
         try
         {
@@ -461,7 +464,7 @@ public class DocumentStorageService : IDocumentStorageService
             _logger.LogError(rollbackEx, "Rollback of destination copy also failed for {Bucket}/{Key}", bucket, key);
         }
     }
-
+    
     private static StorageObjectDto MapToDto(StorageObjectInfo info) => new()
     {
         Bucket = info.Bucket,

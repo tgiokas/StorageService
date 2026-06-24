@@ -1,13 +1,11 @@
-using DotNetEnv;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+
 using Serilog;
 
 using Storage.Api.Middlewares;
 using Storage.Application;
 using Storage.Application.Configuration;
 using Storage.Infrastructure;
-
-Env.Load();
-Env.TraversePath().Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +20,9 @@ Log.Logger = new LoggerConfiguration()
 Log.Information("Configuration is starting...");
 
 builder.Host.UseSerilog();
+
+// Add Kestrel server options to allow large file uploads (up to 50 MB)
+builder.Services.Configure<KestrelServerOptions>(o => o.Limits.MaxRequestBodySize = 50L * 1024 * 1024); // 50 MB
 
 // Add Application services
 var indexingSettings = IndexingSettings.BindFromConfiguration(builder.Configuration);
@@ -43,6 +44,7 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Add Swagger in Development environment only
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddEndpointsApiExplorer();
