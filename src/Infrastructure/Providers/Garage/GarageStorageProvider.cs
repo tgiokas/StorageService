@@ -225,30 +225,19 @@ public class GarageStorageProvider : IStorageProvider
                 .WithBucket(bucket)
                 .WithObject(key);
 
-            _logger.LogInformation($"Entering StatObjectArgs with statArgs {statArgs}");
-
             var stat = await _client.StatObjectAsync(statArgs, ct);
 
-            _logger.LogInformation($"Returning from StatObjectArgs with result {stat}");
-
             // Defensive check — Garage may return an empty ObjectStat instead of throwing
-            var result = stat != null && !string.IsNullOrEmpty(stat.ETag);
-
-            return result;           
+            return stat != null && !string.IsNullOrEmpty(stat.ETag);
         }
-        catch (ObjectNotFoundException ex1)
+        catch (ObjectNotFoundException)
         {
-            _logger.LogError($"ObjectNotFoundException: {ex1}");
+            // A missing object is an expected, normal outcome — not an error.
             return false;
         }
-        catch (BucketNotFoundException ex2)
+        catch (BucketNotFoundException)
         {
-            _logger.LogError($"BucketNotFoundException: {ex2}");
-            return false;
-        }
-        catch (Exception ex3)
-        {
-            _logger.LogError($"Exception: {ex3}");
+            // A missing bucket means the object cannot exist — also expected.
             return false;
         }
     }
